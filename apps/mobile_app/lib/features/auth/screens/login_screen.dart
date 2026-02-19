@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/auth_service.dart';
+import '../../dashboard/dashboard_screen.dart';
 
 /// 🔹 Main Login Widget
 class LoginScreen extends StatefulWidget {
@@ -45,8 +46,12 @@ class _LoginScreenState extends State<LoginScreen> {
         const SnackBar(content: Text("Login successful")),
       );
 
-      // 🔥 Navigate to dashboard after login
-      Navigator.pushReplacementNamed(context, '/dashboard');
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const DashboardScreen(),
+        ),
+      );
 
     } on AuthException catch (e) {
       setState(() {

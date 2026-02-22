@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/auth_service.dart';
 import '../../dashboard/dashboard_screen.dart';
+import 'signup_screen.dart'; // ✅ Added
 
 /// 🔹 Main Login Widget
 class LoginScreen extends StatefulWidget {
@@ -121,6 +122,21 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Text("Login"),
+            ),
+
+            const SizedBox(height: 10),
+
+            /// ✅ NEW: Sign Up navigation
+            TextButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const SignUpScreen(),
+                  ),
+                );
+              },
+              child: const Text("Don't have an account? Sign Up"),
             ),
           ],
         ),

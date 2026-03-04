@@ -1,0 +1,34 @@
+﻿Resolving dependencies...
+Downloading packages...
+  app_links 6.4.1 (7.0.0 available)
+  dart_jsonwebtoken 3.3.1 (3.3.2 available)
+  matcher 0.12.18 (0.12.19 available)
+  meta 1.17.0 (1.18.1 available)
+  shared_preferences_android 2.4.20 (2.4.21 available)
+  test_api 0.7.9 (0.7.10 available)
+Got dependencies!
+6 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+Analyzing mobile_app...                                         
+
+   info - 'groupValue' is deprecated and shouldn't be used. Use a RadioGroup ancestor to manage group value instead. This feature was deprecated after v3.32.0-0.0.pre - lib\features\auth\screens\signup_screen.dart:113:21 - deprecated_member_use
+   info - 'onChanged' is deprecated and shouldn't be used. Use RadioGroup to handle value change instead. This feature was deprecated after v3.32.0-0.0.pre - lib\features\auth\screens\signup_screen.dart:114:21 - deprecated_member_use
+   info - 'groupValue' is deprecated and shouldn't be used. Use a RadioGroup ancestor to manage group value instead. This feature was deprecated after v3.32.0-0.0.pre - lib\features\auth\screens\signup_screen.dart:122:21 - deprecated_member_use
+   info - 'onChanged' is deprecated and shouldn't be used. Use RadioGroup to handle value change instead. This feature was deprecated after v3.32.0-0.0.pre - lib\features\auth\screens\signup_screen.dart:123:21 - deprecated_member_use
+  error - Expected an identifier - lib\role_views\owner\owner_view.dart:26:61 - missing_identifier
+  error - Invalid constant value - lib\role_views\owner\owner_view.dart:26:61 - invalid_constant
+
+flutter : 6 issues found. (ran in 
+1.5s)
+At line:1 char:1
++ flutter analyze > 
+analysis_output.txt 2>&1
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~
+    + CategoryInfo          : NotS 
+   pecified: (6 issues found. (ra  
+  n in 1.5s):String) [], RemoteE   
+ xception
+    + FullyQualifiedErrorId : Nati 
+   veCommandError
+ 

@@ -49,6 +49,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
 
   Future<void> _fetchStaff() async {
     try {
+      debugPrint('Fetching staff for company: ${widget.companyId}');
       final data = await supabase
           .from('profiles')
           .select('full_name, phone, role, is_online')
@@ -58,8 +59,19 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
       if (mounted) {
         setState(() {
           _staffMembers = List<Map<String, dynamic>>.from(data);
+
+          // 🔹 Explicit Sorting: Online first, then by name
+          _staffMembers.sort((a, b) {
+            bool aOnline = a['is_online'] == true;
+            bool bOnline = b['is_online'] == true;
+            if (aOnline && !bOnline) return -1;
+            if (!aOnline && bOnline) return 1;
+            return (a['full_name'] ?? '').compareTo(b['full_name'] ?? '');
+          });
+
           _loading = false;
         });
+        debugPrint('Fetched ${_staffMembers.length} staff members');
       }
     } catch (e) {
       debugPrint('Error fetching staff: $e');

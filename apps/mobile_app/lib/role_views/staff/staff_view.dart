@@ -38,7 +38,12 @@ class _StaffViewState extends State<StaffView> {
           .from('profiles')
           .select('full_name, company_id')
           .eq('id', user.id)
-          .single();
+          .maybeSingle();
+
+      if (res == null) {
+        if (mounted) setState(() => _loading = false);
+        return;
+      }
 
       if (mounted) {
         setState(() {
@@ -54,9 +59,22 @@ class _StaffViewState extends State<StaffView> {
   }
 
   Future<void> _joinCompany() async {
-    final code = _companyCodeCtrl.text.trim();
-    if (code.isEmpty) {
+    final codeText = _companyCodeCtrl.text.trim();
+    if (codeText.isEmpty) {
       _showToast('Please enter a valid Company ID', Colors.redAccent);
+      return;
+    }
+
+    // Basic UUID validation (since code is used in a UUID query)
+    final uuidRegex = RegExp(
+      r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+      caseSensitive: false,
+    );
+    if (!uuidRegex.hasMatch(codeText)) {
+      _showToast(
+        'Invalid ID format. Please copy the full ID from your owner.',
+        Colors.redAccent,
+      );
       return;
     }
 
@@ -64,15 +82,16 @@ class _StaffViewState extends State<StaffView> {
 
     try {
       // First verify if company exists
+      debugPrint('Attempting to join company with code: $codeText');
       final companyRes = await supabase
           .from('companies')
           .select('id')
-          .eq('id', code)
+          .eq('id', codeText)
           .maybeSingle();
 
       if (companyRes == null) {
         _showToast(
-          'Invalid Company ID. Please check and try again.',
+          'Could not find a company with this ID. Please double check.',
           Colors.redAccent,
         );
         setState(() => _submittingCode = false);
@@ -84,16 +103,16 @@ class _StaffViewState extends State<StaffView> {
       if (user != null) {
         await supabase
             .from('profiles')
-            .update({'company_id': code})
+            .update({'company_id': codeText})
             .eq('id', user.id);
 
         _showToast('Successfully joined the company!', Colors.green);
-        _fetchStaffProfile(); // Refresh screen
+        await _fetchStaffProfile(); // Refresh screen
       }
     } catch (e) {
       debugPrint('Error joining company: $e');
       _showToast(
-        'Something went wrong. The ID might be invalid.',
+        'Connection error: ${e.toString().contains('Invalid UUID format') ? 'Invalid ID format' : 'Try again later'}',
         Colors.redAccent,
       );
     } finally {

@@ -33,7 +33,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
           .from('profiles')
           .select('role')
           .eq('id', user.id)
-          .single();
+          .maybeSingle();
+
+      if (res == null) {
+        throw Exception('Profile not found. Please create a new account.');
+      }
 
       if (mounted) {
         setState(() {
@@ -85,7 +89,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             TextButton(
               onPressed: () async {
                 await Supabase.instance.client.auth.signOut();
-                if (mounted) Navigator.pushReplacementNamed(context, '/login');
+                if (context.mounted)
+                  Navigator.pushReplacementNamed(context, '/login');
               },
               child: const Text('Back to Login'),
             ),

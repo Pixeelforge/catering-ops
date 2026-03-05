@@ -31,7 +31,12 @@ class _OwnerViewState extends State<OwnerView> {
           .from('profiles')
           .select('full_name, company_id')
           .eq('id', user.id)
-          .single();
+          .maybeSingle();
+
+      if (res == null) {
+        if (mounted) setState(() => _loading = false);
+        return;
+      }
 
       if (mounted) {
         setState(() {
@@ -108,7 +113,8 @@ class _OwnerViewState extends State<OwnerView> {
                 } catch (_) {}
               }
               await Supabase.instance.client.auth.signOut();
-              if (mounted) Navigator.pushReplacementNamed(context, '/login');
+              if (context.mounted)
+                Navigator.pushReplacementNamed(context, '/login');
             },
             icon: const Icon(Icons.logout, color: Colors.white70),
           ),

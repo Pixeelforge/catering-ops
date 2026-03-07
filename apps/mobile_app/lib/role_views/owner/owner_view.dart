@@ -522,7 +522,7 @@ class _OwnerViewState extends State<OwnerView> {
               ? OrdersTab(companyId: _companyId ?? '')
               : _selectedIndex == 2
                   ? const JoinRequestsScreen()
-                  : const KaathaScreen(),
+                  : KaathaScreen(companyId: _companyId ?? ''),
       bottomNavigationBar: BottomNavigationBar(
         backgroundColor: const Color(0xFF161626),
         selectedItemColor: Colors.orangeAccent,

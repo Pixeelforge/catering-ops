@@ -20,10 +20,17 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _error;
 
   Future<void> _login() async {
-    if (_email.text.trim().isEmpty || _password.text.trim().isEmpty) {
-      setState(() {
-        _error = "Email and password cannot be empty";
-      });
+    final email = _email.text.trim();
+    final password = _password.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      setState(() => _error = "Email and password cannot be empty");
+      return;
+    }
+
+    final emailRegExp = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+    if (!emailRegExp.hasMatch(email)) {
+      setState(() => _error = "Please enter a valid email address");
       return;
     }
 

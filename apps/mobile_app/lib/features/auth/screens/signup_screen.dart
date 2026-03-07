@@ -13,9 +13,63 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _phoneCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
+  final _companyNameCtrl = TextEditingController();
 
   bool _loading = false;
   String _role = 'staff'; // 'owner' or 'staff'
+
+  // Validation errors
+  String? _nameError;
+  String? _phoneError;
+  String? _emailError;
+  String? _passwordError;
+  String? _companyError;
+
+  bool _validate() {
+    bool isValid = true;
+    final fullName = _fullNameCtrl.text.trim();
+    final phone = _phoneCtrl.text.trim();
+    final email = _emailCtrl.text.trim();
+    final password = _passwordCtrl.text;
+    final companyName = _companyNameCtrl.text.trim();
+
+    setState(() {
+      _nameError = null;
+      _phoneError = null;
+      _emailError = null;
+      _passwordError = null;
+      _companyError = null;
+    });
+
+    if (fullName.length < 3) {
+      setState(() => _nameError = 'Name must be at least 3 characters');
+      isValid = false;
+    }
+
+    final phoneRegExp = RegExp(r'^\d+$');
+    if (phone.length < 10 || !phoneRegExp.hasMatch(phone)) {
+      setState(() => _phoneError = 'Enter a valid 10-digit phone number');
+      isValid = false;
+    }
+
+    final emailRegExp = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+    if (!emailRegExp.hasMatch(email)) {
+      setState(() => _emailError = 'Please enter a valid email address');
+      isValid = false;
+    }
+
+    if (password.length < 6) {
+      setState(() => _passwordError = 'Password must be at least 6 characters');
+      isValid = false;
+    }
+
+    if (_role == 'owner' && companyName.isEmpty) {
+      setState(() => _companyError = 'Company name is required for owners');
+      isValid = false;
+    }
+
+    return isValid;
+  }
 
   @override
   void dispose() {
@@ -23,6 +77,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     _phoneCtrl.dispose();
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
+    _companyNameCtrl.dispose();
     super.dispose();
   }
 
@@ -31,11 +86,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
     final phone = _phoneCtrl.text.trim();
     final email = _emailCtrl.text.trim();
     final password = _passwordCtrl.text;
+    final companyName = _companyNameCtrl.text.trim();
 
-    if (email.isEmpty || password.isEmpty) {
-      _toast('Email and password are required.');
-      return;
-    }
+    if (!_validate()) return;
 
     setState(() => _loading = true);
 
@@ -45,7 +98,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
       final res = await supabase.auth.signUp(
         email: email,
         password: password,
-        data: {'full_name': fullName, 'phone': phone, 'role': _role},
+        data: {
+          'full_name': fullName,
+          'phone': phone,
+          'role': _role,
+          if (_role == 'owner') 'company_name': companyName,
+        },
       );
 
       if (res.user == null) {
@@ -138,6 +196,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         controller: _fullNameCtrl,
                         label: 'Full Name',
                         icon: Icons.person_outline,
+                        errorText: _nameError,
                       ),
                       const SizedBox(height: 16),
                       _buildTextField(
@@ -145,8 +204,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         label: 'Phone Number',
                         icon: Icons.phone_outlined,
                         keyboardType: TextInputType.phone,
+                        errorText: _phoneError,
                       ),
                       const SizedBox(height: 24),
+
+                      if (_role == 'owner') ...[
+                        _buildTextField(
+                          controller: _companyNameCtrl,
+                          label: 'Company Name',
+                          icon: Icons.business_outlined,
+                          errorText: _companyError,
+                        ),
+                        const SizedBox(height: 24),
+                      ],
 
                       const Text(
                         'Select Your Role',
@@ -180,9 +250,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       const SizedBox(height: 24),
                       _buildTextField(
                         controller: _emailCtrl,
-                        label: 'Email',
+                        label: 'Email Address',
                         icon: Icons.email_outlined,
                         keyboardType: TextInputType.emailAddress,
+                        errorText: _emailError,
                       ),
                       const SizedBox(height: 16),
                       _buildTextField(
@@ -190,6 +261,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         label: 'Password',
                         icon: Icons.lock_outline,
                         obscureText: true,
+                        errorText: _passwordError,
                       ),
                       const SizedBox(height: 32),
                       _buildSignUpButton(),
@@ -211,6 +283,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     required IconData icon,
     bool obscureText = false,
     TextInputType? keyboardType,
+    String? errorText,
   }) {
     return TextField(
       controller: controller,
@@ -220,6 +293,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
       decoration: InputDecoration(
         labelText: label,
         labelStyle: const TextStyle(color: Colors.white60, fontSize: 13),
+        errorText: errorText,
+        errorStyle: const TextStyle(color: Colors.redAccent),
         prefixIcon: Icon(icon, color: Colors.white60, size: 20),
         filled: true,
         fillColor: Colors.white.withOpacity(0.05),

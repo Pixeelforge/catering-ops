@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'staff_management_screen.dart';
+import '../../features/inventory/inventory_list_screen.dart';
 
 class OwnerView extends StatefulWidget {
   const OwnerView({super.key});
@@ -11,23 +13,35 @@ class OwnerView extends StatefulWidget {
 }
 
 class _OwnerViewState extends State<OwnerView> {
+  final supabase = Supabase.instance.client;
+  bool _loading = true;
   String? _companyId;
   String? _ownerName;
-  bool _loading = true;
+  String? _companyName;
+  int _pendingCount = 0;
+  RealtimeChannel? _requestSubscription;
   bool _showId = false;
+  final _audioPlayer = AudioPlayer();
+
+  @override
+  void dispose() {
+    _requestSubscription?.unsubscribe();
+    _audioPlayer.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
     super.initState();
-    _fetchCompanyData();
+    _fetchOwnerProfile();
   }
 
-  Future<void> _fetchCompanyData() async {
-    final user = Supabase.instance.client.auth.currentUser;
+  Future<void> _fetchOwnerProfile() async {
+    final user = supabase.auth.currentUser;
     if (user == null) return;
 
     try {
-      final res = await Supabase.instance.client
+      final res = await supabase
           .from('profiles')
           .select('full_name, company_id')
           .eq('id', user.id)
@@ -44,11 +58,70 @@ class _OwnerViewState extends State<OwnerView> {
           _companyId = res['company_id'];
           _loading = false;
         });
+
+        if (_companyId != null) {
+          _fetchCompanyName();
+          _fetchRequestCount();
+          _setupRequestRealtime();
+        }
       }
     } catch (e) {
-      debugPrint('Error fetching company data: $e');
+      debugPrint('Error fetching owner profile: $e');
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Future<void> _fetchCompanyName() async {
+    if (_companyId == null) return;
+    try {
+      final res = await supabase
+          .from('companies')
+          .select('name')
+          .eq('id', _companyId!)
+          .maybeSingle();
+      if (res != null && mounted) {
+        setState(() => _companyName = res['name']);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _fetchRequestCount() async {
+    if (_companyId == null) return;
+    try {
+      final res = await supabase
+          .from('company_join_requests')
+          .select('id')
+          .eq('company_id', _companyId!)
+          .eq('status', 'pending');
+      if (mounted) {
+        setState(() => _pendingCount = (res as List).length);
+      }
+    } catch (_) {}
+  }
+
+  void _setupRequestRealtime() {
+    _requestSubscription?.unsubscribe();
+    if (_companyId == null) return;
+
+    _requestSubscription = supabase
+        .channel('public:company_join_requests')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'company_join_requests',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'company_id',
+            value: _companyId!,
+          ),
+          callback: (payload) {
+            if (payload.eventType == PostgresChangeEvent.insert) {
+              _audioPlayer.play(AssetSource('sounds/notification.mp3'));
+            }
+            _fetchRequestCount();
+          },
+        )
+        .subscribe();
   }
 
   Future<void> _copyCompanyId() async {
@@ -77,6 +150,43 @@ class _OwnerViewState extends State<OwnerView> {
         }
       }
     }
+  }
+
+  Widget _buildPendingRequestBanner() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.orangeAccent.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.orangeAccent.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.person_add_outlined, color: Colors.orangeAccent),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              '$_pendingCount pending join request${_pendingCount > 1 ? 's' : ''}',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pushNamed(context, '/join_requests'),
+            child: const Text(
+              'REVIEW',
+              style: TextStyle(
+                color: Colors.orangeAccent,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -133,15 +243,24 @@ class _OwnerViewState extends State<OwnerView> {
               ),
             ),
             Text(
-              _ownerName ?? 'Owner',
+              _companyName ?? 'Dashboard',
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 40),
+            const SizedBox(height: 8),
+            Text(
+              'Owner: ${_ownerName ?? '...'}',
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.5),
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 30),
 
+            if (_pendingCount > 0) _buildPendingRequestBanner(),
             // Company ID Card (The "Copy" section)
             Container(
               padding: const EdgeInsets.all(24),
@@ -239,6 +358,84 @@ class _OwnerViewState extends State<OwnerView> {
                     ),
                   ),
                 ],
+              ),
+            ),
+
+            const SizedBox(height: 30),
+
+            // Inventory Action
+            InkWell(
+              onTap: () {
+                if (_companyId != null) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => InventoryListScreen(
+                        companyId: _companyId!,
+                        isOwner: true,
+                      ),
+                    ),
+                  );
+                }
+              },
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.blueAccent.withOpacity(0.15),
+                      Colors.blueAccent.withOpacity(0.05),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: Colors.blueAccent.withOpacity(0.2),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.blueAccent.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.inventory_2_outlined,
+                        color: Colors.blueAccent,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Manage Inventory',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                          Text(
+                            'Track food items and stock',
+                            style: TextStyle(
+                              color: Colors.white54,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      color: Colors.white24,
+                      size: 16,
+                    ),
+                  ],
+                ),
               ),
             ),
 

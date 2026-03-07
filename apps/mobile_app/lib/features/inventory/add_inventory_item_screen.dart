@@ -27,8 +27,8 @@ class _AddInventoryItemScreenState extends State<AddInventoryItemScreen> {
     'Other'
   ];
 
-  String _selectedUnit = 'kg';
-  final List<String> _units = ['kg', 'lbs', 'liters', 'gallons', 'units', 'boxes'];
+  String _selectedUnit = 'kgs';
+  final List<String> _units = ['kgs', 'litres', 'boxes'];
 
   bool _isSubmitting = false;
 

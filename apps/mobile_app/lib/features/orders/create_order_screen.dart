@@ -20,17 +20,18 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
   final _middlemanController = TextEditingController();
   final _middlemanPhoneController = TextEditingController();
   final _totalController = TextEditingController();
-  
+
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
-  
+
   String _paymentStatus = 'pending';
   String _orderType = 'direct'; // 'direct' or 'middleman'
-  
+
   // Menu Item Selection
   List<Map<String, dynamic>> _availableMenuItems = [];
   final List<Map<String, dynamic>> _selectedItems = [];
-  
+  List<String> _units = ['kgs', 'litres', 'boxes', 'units'];
+
   bool _isLoading = false;
   bool _isFetchingMenu = true;
 
@@ -38,6 +39,25 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
   void initState() {
     super.initState();
     _fetchMenuItems();
+    _fetchUnits();
+  }
+
+  Future<void> _fetchUnits() async {
+    try {
+      final data = await _supabase
+          .from('inventory_units')
+          .select('name')
+          .eq('company_id', widget.companyId);
+      final dbUnits = (data as List).map((e) => e['name'] as String).toList();
+      setState(() {
+        _units = {
+          ...['kgs', 'litres', 'boxes', 'units'],
+          ...dbUnits,
+        }.toList();
+      });
+    } catch (e) {
+      debugPrint('Error fetching units: $e');
+    }
   }
 
   @override
@@ -56,7 +76,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
           .select('id, name, category')
           .eq('company_id', widget.companyId)
           .order('name');
-          
+
       if (mounted) {
         setState(() {
           _availableMenuItems = List<Map<String, dynamic>>.from(data);
@@ -117,6 +137,146 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
     }
   }
 
+  Future<void> _showQuickAddItemDialog(
+    Function(void Function()) setSheetState,
+  ) async {
+    final nameCtrl = TextEditingController();
+    final qtyCtrl = TextEditingController();
+    String selectedCategory = 'Produce';
+    String selectedUnit = 'kgs';
+
+    final categories = [
+      'Produce',
+      'Meat & Poultry',
+      'Dairy',
+      'Dry Goods',
+      'Beverages',
+      'Equipment',
+      'Other',
+    ];
+
+    await showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: const Color(0xFF1E1E2C),
+          title: const Text(
+            'Quick Add Item',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameCtrl,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(
+                    labelText: 'Item Name',
+                    labelStyle: TextStyle(color: Colors.white54),
+                  ),
+                ),
+                TextField(
+                  controller: qtyCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(
+                    labelText: 'Initial Quantity',
+                    labelStyle: TextStyle(color: Colors.white54),
+                  ),
+                ),
+                DropdownButtonFormField<String>(
+                  value: selectedCategory,
+                  dropdownColor: const Color(0xFF1E1E2C),
+                  items: categories
+                      .map(
+                        (c) => DropdownMenuItem(
+                          value: c,
+                          child: Text(
+                            c,
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (val) =>
+                      setDialogState(() => selectedCategory = val!),
+                  decoration: const InputDecoration(
+                    labelText: 'Category',
+                    labelStyle: TextStyle(color: Colors.white54),
+                  ),
+                ),
+                DropdownButtonFormField<String>(
+                  value: selectedUnit,
+                  dropdownColor: const Color(0xFF1E1E2C),
+                  items: _units
+                      .map(
+                        (u) => DropdownMenuItem(
+                          value: u,
+                          child: Text(
+                            u,
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (val) => setDialogState(() => selectedUnit = val!),
+                  decoration: const InputDecoration(
+                    labelText: 'Unit',
+                    labelStyle: TextStyle(color: Colors.white54),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (nameCtrl.text.isEmpty) return;
+                try {
+                  final newItem = await _supabase
+                      .from('inventory_items')
+                      .insert({
+                        'company_id': widget.companyId,
+                        'name': nameCtrl.text.trim(),
+                        'category': selectedCategory,
+                        'quantity': double.tryParse(qtyCtrl.text) ?? 0,
+                        'unit': selectedUnit,
+                      })
+                      .select()
+                      .single();
+
+                  setState(() {
+                    _availableMenuItems.add(newItem);
+                    _availableMenuItems.sort(
+                      (a, b) => a['name'].compareTo(b['name']),
+                    );
+                    _selectedItems.add({
+                      'id': newItem['id'],
+                      'name': newItem['name'],
+                      'quantity': 1,
+                      'quantity_type': 'fixed',
+                    });
+                  });
+                  setSheetState(() {});
+                  if (mounted) Navigator.pop(context);
+                } catch (e) {
+                  debugPrint('Error quick adding item: $e');
+                }
+              },
+              child: const Text('Save & Select'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   void _showItemSelectorBottomSheet() {
     showModalBottomSheet(
@@ -135,37 +295,74 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   children: [
-                    const Padding(
-                      padding: EdgeInsets.only(bottom: 12),
-                      child: Text(
-                        'Select Inventory Items',
-                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Select Inventory Items',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: () =>
+                              _showQuickAddItemDialog(setSheetState),
+                          icon: const Icon(
+                            Icons.add_circle_outline,
+                            color: Colors.orangeAccent,
+                          ),
+                          label: const Text(
+                            'Create New',
+                            style: TextStyle(color: Colors.orangeAccent),
+                          ),
+                        ),
+                      ],
                     ),
                     const Divider(color: Colors.white24),
                     Expanded(
                       child: _availableMenuItems.isEmpty
-                          ? const Center(child: Text("No items configured yet.", style: TextStyle(color: Colors.white54)))
+                          ? const Center(
+                              child: Text(
+                                "No items configured yet.",
+                                style: TextStyle(color: Colors.white54),
+                              ),
+                            )
                           : ListView.builder(
                               itemCount: _availableMenuItems.length,
                               itemBuilder: (context, index) {
                                 final item = _availableMenuItems[index];
-                                final isSelected = _selectedItems.any((e) => e['id'] == item['id']);
-                                
+                                final isSelected = _selectedItems.any(
+                                  (e) => e['id'] == item['id'],
+                                );
+
                                 return ListTile(
-                                  title: Text(item['name'], style: const TextStyle(color: Colors.white)),
+                                  title: Text(
+                                    item['name'],
+                                    style: const TextStyle(color: Colors.white),
+                                  ),
                                   trailing: isSelected
-                                      ? const Icon(Icons.check_circle, color: Colors.orangeAccent)
-                                      : const Icon(Icons.circle_outlined, color: Colors.white24),
+                                      ? const Icon(
+                                          Icons.check_circle,
+                                          color: Colors.orangeAccent,
+                                        )
+                                      : const Icon(
+                                          Icons.circle_outlined,
+                                          color: Colors.white24,
+                                        ),
                                   onTap: () {
                                     setState(() {
                                       if (isSelected) {
-                                        _selectedItems.removeWhere((e) => e['id'] == item['id']);
+                                        _selectedItems.removeWhere(
+                                          (e) => e['id'] == item['id'],
+                                        );
                                       } else {
                                         _selectedItems.add({
                                           'id': item['id'],
                                           'name': item['name'],
                                           'quantity': 1,
+                                          'quantity_type': 'fixed',
                                         });
                                       }
                                     });
@@ -182,17 +379,26 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.orangeAccent,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                         onPressed: () => Navigator.pop(context),
-                        child: const Text('Done', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
+                        child: const Text(
+                          'Done',
+                          style: TextStyle(
+                            color: Colors.black,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
             );
-          }
+          },
         );
       },
     );
@@ -200,7 +406,9 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
 
   void _toast(String msg) {
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.orangeAccent));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), backgroundColor: Colors.orangeAccent),
+      );
     }
   }
 
@@ -227,19 +435,26 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
       ).toUtc().toIso8601String();
 
       final totalValue = double.tryParse(_totalController.text) ?? 0.0;
-      
-      // Map _selectedItems to just name and quantity for JSONB
-      final menuItemsJson = _selectedItems.map((item) => {
-        'name': item['name'],
-        'quantity': item['quantity'],
-      }).toList();
+
+      // Map _selectedItems to just name, quantity, and type for JSONB
+      final menuItemsJson = _selectedItems
+          .map(
+            (item) => {
+              'name': item['name'],
+              'quantity': item['quantity'],
+              'quantity_type': item['quantity_type'] ?? 'fixed',
+            },
+          )
+          .toList();
 
       await _supabase.from('orders').insert({
         'company_id': widget.companyId,
         'client_name': _clientNameController.text.trim(),
         'event_date': eventDateTime,
         'menu_items': menuItemsJson,
-        'middleman_tag': _orderType == 'middleman' && _middlemanController.text.trim().isNotEmpty
+        'middleman_tag':
+            _orderType == 'middleman' &&
+                _middlemanController.text.trim().isNotEmpty
             ? '${_middlemanController.text.trim()} (${_middlemanPhoneController.text.trim()})'
             : null,
         'total_value': totalValue,
@@ -256,8 +471,15 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
   }
 
   String get _formattedDateTime {
-    if (_selectedDate == null || _selectedTime == null) return 'Select Date & Time';
-    final dt = DateTime(_selectedDate!.year, _selectedDate!.month, _selectedDate!.day, _selectedTime!.hour, _selectedTime!.minute);
+    if (_selectedDate == null || _selectedTime == null)
+      return 'Select Date & Time';
+    final dt = DateTime(
+      _selectedDate!.year,
+      _selectedDate!.month,
+      _selectedDate!.day,
+      _selectedTime!.hour,
+      _selectedTime!.minute,
+    );
     return DateFormat('MMM dd, yyyy - h:mm a').format(dt);
   }
 
@@ -266,7 +488,10 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF161626),
       appBar: AppBar(
-        title: const Text('Create Order', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text(
+          'Create Order',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
@@ -275,7 +500,9 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
         ),
       ),
       body: _isFetchingMenu
-          ? const Center(child: CircularProgressIndicator(color: Colors.orangeAccent))
+          ? const Center(
+              child: CircularProgressIndicator(color: Colors.orangeAccent),
+            )
           : Form(
               key: _formKey,
               child: ListView(
@@ -288,17 +515,24 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                     decoration: InputDecoration(
                       labelText: 'Client / Event Name',
                       labelStyle: const TextStyle(color: Colors.white54),
-                      prefixIcon: const Icon(Icons.person_outline, color: Colors.orangeAccent),
+                      prefixIcon: const Icon(
+                        Icons.person_outline,
+                        color: Colors.orangeAccent,
+                      ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
                         borderSide: const BorderSide(color: Colors.white12),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
-                        borderSide: const BorderSide(color: Colors.orangeAccent),
+                        borderSide: const BorderSide(
+                          color: Colors.orangeAccent,
+                        ),
                       ),
                     ),
-                    validator: (v) => v == null || v.isEmpty ? 'Client name is required' : null,
+                    validator: (v) => v == null || v.isEmpty
+                        ? 'Client name is required'
+                        : null,
                   ),
                   const SizedBox(height: 20),
 
@@ -307,7 +541,10 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                     onTap: _pickDateAndTime,
                     borderRadius: BorderRadius.circular(16),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 20,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(0.05),
                         borderRadius: BorderRadius.circular(16),
@@ -315,22 +552,39 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.calendar_today, color: Colors.orangeAccent),
+                          const Icon(
+                            Icons.calendar_today,
+                            color: Colors.orangeAccent,
+                          ),
                           const SizedBox(width: 16),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('Event Date & Time', style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12)),
+                                Text(
+                                  'Event Date & Time',
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.5),
+                                    fontSize: 12,
+                                  ),
+                                ),
                                 const SizedBox(height: 4),
                                 Text(
                                   _formattedDateTime,
-                                  style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ],
                             ),
                           ),
-                          const Icon(Icons.arrow_forward_ios, color: Colors.white24, size: 16),
+                          const Icon(
+                            Icons.arrow_forward_ios,
+                            color: Colors.white24,
+                            size: 16,
+                          ),
                         ],
                       ),
                     ),
@@ -341,7 +595,11 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                   // Menu Items Section header
                   const Text(
                     'Menu Items',
-                    style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 12),
 
@@ -355,20 +613,34 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                         decoration: BoxDecoration(
                           color: Colors.orangeAccent.withOpacity(0.07),
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.orangeAccent.withOpacity(0.5), width: 1.5),
+                          border: Border.all(
+                            color: Colors.orangeAccent.withOpacity(0.5),
+                            width: 1.5,
+                          ),
                         ),
                         child: const Column(
                           children: [
-                            Icon(Icons.restaurant_menu, color: Colors.orangeAccent, size: 36),
+                            Icon(
+                              Icons.restaurant_menu,
+                              color: Colors.orangeAccent,
+                              size: 36,
+                            ),
                             SizedBox(height: 8),
                             Text(
                               'Tap to Select Menu Items',
-                              style: TextStyle(color: Colors.orangeAccent, fontSize: 16, fontWeight: FontWeight.bold),
+                              style: TextStyle(
+                                color: Colors.orangeAccent,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                             SizedBox(height: 4),
                             Text(
                               'Choose from your inventory',
-                              style: TextStyle(color: Colors.white38, fontSize: 12),
+                              style: TextStyle(
+                                color: Colors.white38,
+                                fontSize: 12,
+                              ),
                             ),
                           ],
                         ),
@@ -382,45 +654,145 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                           decoration: BoxDecoration(
                             color: Colors.white.withOpacity(0.04),
                             borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: Colors.orangeAccent.withOpacity(0.3)),
+                            border: Border.all(
+                              color: Colors.orangeAccent.withOpacity(0.3),
+                            ),
                           ),
                           child: Column(
                             children: _selectedItems.map((item) {
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: Row(
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 12),
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.05),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: Colors.white10),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Icon(Icons.restaurant_menu, color: Colors.orangeAccent, size: 16),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Text(item['name'], style: const TextStyle(color: Colors.white, fontSize: 15)),
+                                    Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.restaurant_menu,
+                                          color: Colors.orangeAccent,
+                                          size: 16,
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: Text(
+                                            item['name'],
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                        IconButton(
+                                          icon: const Icon(
+                                            Icons.close,
+                                            color: Colors.white24,
+                                            size: 18,
+                                          ),
+                                          onPressed: () => setState(
+                                            () => _selectedItems.removeWhere(
+                                              (e) => e['id'] == item['id'],
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                    Container(
-                                      decoration: BoxDecoration(
-                                        color: Colors.white10,
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          IconButton(
-                                            icon: const Icon(Icons.remove, color: Colors.white, size: 16),
-                                            onPressed: () {
-                                              if (item['quantity'] > 1) {
-                                                setState(() => item['quantity']--);
-                                              }
-                                            },
-                                            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                                            padding: EdgeInsets.zero,
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      children: [
+                                        // Toggle
+                                        ToggleButtons(
+                                          borderRadius: BorderRadius.circular(
+                                            8,
                                           ),
-                                          Text('${item['quantity']}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                                          IconButton(
-                                            icon: const Icon(Icons.add, color: Colors.white, size: 16),
-                                            onPressed: () => setState(() => item['quantity']++),
-                                            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                                            padding: EdgeInsets.zero,
+                                          isSelected: [
+                                            (item['quantity_type'] ??
+                                                    'fixed') ==
+                                                'fixed',
+                                            (item['quantity_type'] ??
+                                                    'fixed') ==
+                                                'persons',
+                                          ],
+                                          onPressed: (idx) {
+                                            setState(() {
+                                              item['quantity_type'] = idx == 0
+                                                  ? 'fixed'
+                                                  : 'persons';
+                                            });
+                                          },
+                                          fillColor: Colors.orangeAccent
+                                              .withOpacity(0.2),
+                                          selectedColor: Colors.orangeAccent,
+                                          color: Colors.white38,
+                                          constraints: const BoxConstraints(
+                                            minHeight: 32,
+                                            minWidth: 60,
                                           ),
-                                        ],
-                                      ),
+                                          children: const [
+                                            Text(
+                                              'Qty',
+                                              style: TextStyle(fontSize: 12),
+                                            ),
+                                            Text(
+                                              'Persons',
+                                              style: TextStyle(fontSize: 12),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(width: 12),
+                                        // Text Input for Value
+                                        Expanded(
+                                          child: SizedBox(
+                                            height: 40,
+                                            child: TextFormField(
+                                              initialValue: item['quantity']
+                                                  .toString(),
+                                              keyboardType:
+                                                  const TextInputType.numberWithOptions(
+                                                    decimal: true,
+                                                  ),
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 14,
+                                              ),
+                                              decoration: InputDecoration(
+                                                hintText: 'Enter amount...',
+                                                hintStyle: const TextStyle(
+                                                  color: Colors.white24,
+                                                  fontSize: 12,
+                                                ),
+                                                contentPadding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 12,
+                                                      vertical: 0,
+                                                    ),
+                                                filled: true,
+                                                fillColor: Colors.white
+                                                    .withOpacity(0.05),
+                                                border: OutlineInputBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                  borderSide: BorderSide.none,
+                                                ),
+                                              ),
+                                              onChanged: (val) {
+                                                final numVal =
+                                                    double.tryParse(val) ?? 0;
+                                                setState(
+                                                  () =>
+                                                      item['quantity'] = numVal,
+                                                );
+                                              },
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ],
                                 ),
@@ -433,11 +805,22 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                           width: double.infinity,
                           child: OutlinedButton.icon(
                             onPressed: _showItemSelectorBottomSheet,
-                            icon: const Icon(Icons.add, color: Colors.orangeAccent, size: 16),
-                            label: const Text('Add More Items', style: TextStyle(color: Colors.orangeAccent)),
+                            icon: const Icon(
+                              Icons.add,
+                              color: Colors.orangeAccent,
+                              size: 16,
+                            ),
+                            label: const Text(
+                              'Add More Items',
+                              style: TextStyle(color: Colors.orangeAccent),
+                            ),
                             style: OutlinedButton.styleFrom(
-                              side: const BorderSide(color: Colors.orangeAccent),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              side: const BorderSide(
+                                color: Colors.orangeAccent,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                             ),
                           ),
                         ),
@@ -451,7 +834,11 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                     children: [
                       const Text(
                         'Order Type',
-                        style: TextStyle(color: Colors.white54, fontSize: 13, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          color: Colors.white54,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const SizedBox(height: 10),
                       Container(
@@ -465,30 +852,44 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                             // Direct Customer
                             Expanded(
                               child: GestureDetector(
-                                onTap: () => setState(() => _orderType = 'direct'),
+                                onTap: () =>
+                                    setState(() => _orderType = 'direct'),
                                 child: AnimatedContainer(
                                   duration: const Duration(milliseconds: 200),
-                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: _orderType == 'direct'
                                         ? Colors.orangeAccent.withOpacity(0.18)
                                         : Colors.transparent,
-                                    borderRadius: const BorderRadius.horizontal(left: Radius.circular(13)),
+                                    borderRadius: const BorderRadius.horizontal(
+                                      left: Radius.circular(13),
+                                    ),
                                     border: _orderType == 'direct'
-                                        ? Border.all(color: Colors.orangeAccent, width: 1.5)
+                                        ? Border.all(
+                                            color: Colors.orangeAccent,
+                                            width: 1.5,
+                                          )
                                         : null,
                                   ),
                                   child: Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      Icon(Icons.person,
-                                          color: _orderType == 'direct' ? Colors.orangeAccent : Colors.white24,
-                                          size: 18),
+                                      Icon(
+                                        Icons.person,
+                                        color: _orderType == 'direct'
+                                            ? Colors.orangeAccent
+                                            : Colors.white24,
+                                        size: 18,
+                                      ),
                                       const SizedBox(width: 8),
                                       Text(
                                         'Direct Customer',
                                         style: TextStyle(
-                                          color: _orderType == 'direct' ? Colors.orangeAccent : Colors.white38,
+                                          color: _orderType == 'direct'
+                                              ? Colors.orangeAccent
+                                              : Colors.white38,
                                           fontWeight: FontWeight.bold,
                                           fontSize: 14,
                                         ),
@@ -501,30 +902,46 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                             // Middleman
                             Expanded(
                               child: GestureDetector(
-                                onTap: () => setState(() => _orderType = 'middleman'),
+                                onTap: () =>
+                                    setState(() => _orderType = 'middleman'),
                                 child: AnimatedContainer(
                                   duration: const Duration(milliseconds: 200),
-                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: _orderType == 'middleman'
-                                        ? const Color(0xFFD4A237).withOpacity(0.15)
+                                        ? const Color(
+                                            0xFFD4A237,
+                                          ).withOpacity(0.15)
                                         : Colors.transparent,
-                                    borderRadius: const BorderRadius.horizontal(right: Radius.circular(13)),
+                                    borderRadius: const BorderRadius.horizontal(
+                                      right: Radius.circular(13),
+                                    ),
                                     border: _orderType == 'middleman'
-                                        ? Border.all(color: const Color(0xFFD4A237), width: 1.5)
+                                        ? Border.all(
+                                            color: const Color(0xFFD4A237),
+                                            width: 1.5,
+                                          )
                                         : null,
                                   ),
                                   child: Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      Icon(Icons.people,
-                                          color: _orderType == 'middleman' ? const Color(0xFFD4A237) : Colors.white24,
-                                          size: 18),
+                                      Icon(
+                                        Icons.people,
+                                        color: _orderType == 'middleman'
+                                            ? const Color(0xFFD4A237)
+                                            : Colors.white24,
+                                        size: 18,
+                                      ),
                                       const SizedBox(width: 8),
                                       Text(
                                         'Middleman',
                                         style: TextStyle(
-                                          color: _orderType == 'middleman' ? const Color(0xFFD4A237) : Colors.white38,
+                                          color: _orderType == 'middleman'
+                                              ? const Color(0xFFD4A237)
+                                              : Colors.white38,
                                           fontWeight: FontWeight.bold,
                                           fontSize: 14,
                                         ),
@@ -549,17 +966,27 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                       decoration: InputDecoration(
                         labelText: 'Middleman Name',
                         labelStyle: const TextStyle(color: Colors.white54),
-                        prefixIcon: const Icon(Icons.person_outline, color: Color(0xFFD4A237)),
+                        prefixIcon: const Icon(
+                          Icons.person_outline,
+                          color: Color(0xFFD4A237),
+                        ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(color: Color(0xFFD4A237), width: 1.2),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFD4A237),
+                            width: 1.2,
+                          ),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(color: Color(0xFFD4A237), width: 2),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFD4A237),
+                            width: 2,
+                          ),
                         ),
                       ),
-                      validator: (v) => _orderType == 'middleman' && (v == null || v.isEmpty)
+                      validator: (v) =>
+                          _orderType == 'middleman' && (v == null || v.isEmpty)
                           ? 'Middleman name is required'
                           : null,
                     ),
@@ -571,34 +998,51 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                       decoration: InputDecoration(
                         labelText: 'Middleman Phone Number',
                         labelStyle: const TextStyle(color: Colors.white54),
-                        prefixIcon: const Icon(Icons.phone, color: Color(0xFFD4A237)),
+                        prefixIcon: const Icon(
+                          Icons.phone,
+                          color: Color(0xFFD4A237),
+                        ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(color: Color(0xFFD4A237), width: 1.2),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFD4A237),
+                            width: 1.2,
+                          ),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(color: Color(0xFFD4A237), width: 2),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFD4A237),
+                            width: 2,
+                          ),
                         ),
                       ),
-                      validator: (v) => _orderType == 'middleman' && (v == null || v.isEmpty)
+                      validator: (v) =>
+                          _orderType == 'middleman' && (v == null || v.isEmpty)
                           ? 'Phone number is required'
                           : null,
                     ),
                     const SizedBox(height: 20),
                   ],
 
-
                   // Total Value
                   TextFormField(
                     controller: _totalController,
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
                     keyboardType: TextInputType.number,
                     decoration: InputDecoration(
                       labelText: 'Total Order Value',
                       labelStyle: const TextStyle(color: Colors.white54),
                       prefixText: '₹ ',
-                      prefixStyle: const TextStyle(color: Colors.greenAccent, fontSize: 18, fontWeight: FontWeight.bold),
+                      prefixStyle: const TextStyle(
+                        color: Colors.greenAccent,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
                         borderSide: const BorderSide(color: Colors.white12),
@@ -608,7 +1052,8 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                         borderSide: const BorderSide(color: Colors.greenAccent),
                       ),
                     ),
-                    validator: (v) => v == null || v.isEmpty ? 'Total is required' : null,
+                    validator: (v) =>
+                        v == null || v.isEmpty ? 'Total is required' : null,
                   ),
                   const SizedBox(height: 24),
 
@@ -618,7 +1063,11 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                     children: [
                       const Text(
                         'Payment Status',
-                        style: TextStyle(color: Colors.white54, fontSize: 13, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          color: Colors.white54,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const SizedBox(height: 10),
                       Container(
@@ -632,30 +1081,44 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                             // PAID option
                             Expanded(
                               child: GestureDetector(
-                                onTap: () => setState(() => _paymentStatus = 'paid'),
+                                onTap: () =>
+                                    setState(() => _paymentStatus = 'paid'),
                                 child: AnimatedContainer(
                                   duration: const Duration(milliseconds: 200),
-                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: _paymentStatus == 'paid'
                                         ? Colors.greenAccent.withOpacity(0.2)
                                         : Colors.transparent,
-                                    borderRadius: const BorderRadius.horizontal(left: Radius.circular(13)),
+                                    borderRadius: const BorderRadius.horizontal(
+                                      left: Radius.circular(13),
+                                    ),
                                     border: _paymentStatus == 'paid'
-                                        ? Border.all(color: Colors.greenAccent, width: 1.5)
+                                        ? Border.all(
+                                            color: Colors.greenAccent,
+                                            width: 1.5,
+                                          )
                                         : null,
                                   ),
                                   child: Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      Icon(Icons.check_circle,
-                                          color: _paymentStatus == 'paid' ? Colors.greenAccent : Colors.white24,
-                                          size: 18),
+                                      Icon(
+                                        Icons.check_circle,
+                                        color: _paymentStatus == 'paid'
+                                            ? Colors.greenAccent
+                                            : Colors.white24,
+                                        size: 18,
+                                      ),
                                       const SizedBox(width: 8),
                                       Text(
                                         'Paid',
                                         style: TextStyle(
-                                          color: _paymentStatus == 'paid' ? Colors.greenAccent : Colors.white38,
+                                          color: _paymentStatus == 'paid'
+                                              ? Colors.greenAccent
+                                              : Colors.white38,
                                           fontWeight: FontWeight.bold,
                                           fontSize: 15,
                                         ),
@@ -668,30 +1131,44 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                             // PENDING option
                             Expanded(
                               child: GestureDetector(
-                                onTap: () => setState(() => _paymentStatus = 'pending'),
+                                onTap: () =>
+                                    setState(() => _paymentStatus = 'pending'),
                                 child: AnimatedContainer(
                                   duration: const Duration(milliseconds: 200),
-                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: _paymentStatus == 'pending'
                                         ? Colors.orangeAccent.withOpacity(0.15)
                                         : Colors.transparent,
-                                    borderRadius: const BorderRadius.horizontal(right: Radius.circular(13)),
+                                    borderRadius: const BorderRadius.horizontal(
+                                      right: Radius.circular(13),
+                                    ),
                                     border: _paymentStatus == 'pending'
-                                        ? Border.all(color: Colors.orangeAccent, width: 1.5)
+                                        ? Border.all(
+                                            color: Colors.orangeAccent,
+                                            width: 1.5,
+                                          )
                                         : null,
                                   ),
                                   child: Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      Icon(Icons.pending_actions,
-                                          color: _paymentStatus == 'pending' ? Colors.orangeAccent : Colors.white24,
-                                          size: 18),
+                                      Icon(
+                                        Icons.pending_actions,
+                                        color: _paymentStatus == 'pending'
+                                            ? Colors.orangeAccent
+                                            : Colors.white24,
+                                        size: 18,
+                                      ),
                                       const SizedBox(width: 8),
                                       Text(
                                         'Pending',
                                         style: TextStyle(
-                                          color: _paymentStatus == 'pending' ? Colors.orangeAccent : Colors.white38,
+                                          color: _paymentStatus == 'pending'
+                                              ? Colors.orangeAccent
+                                              : Colors.white38,
                                           fontWeight: FontWeight.bold,
                                           fontSize: 15,
                                         ),
@@ -715,14 +1192,20 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.orangeAccent,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
                       ),
                       onPressed: _isLoading ? null : _submitOrder,
                       child: _isLoading
                           ? const CircularProgressIndicator(color: Colors.black)
                           : const Text(
                               'Create Order',
-                              style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.bold),
+                              style: TextStyle(
+                                color: Colors.black,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                     ),
                   ),

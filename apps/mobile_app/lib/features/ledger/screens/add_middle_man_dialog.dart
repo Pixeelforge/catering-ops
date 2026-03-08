@@ -4,7 +4,11 @@ class AddMiddleManDialog extends StatefulWidget {
   final String companyId;
   final Map<String, dynamic>? initialData;
 
-  const AddMiddleManDialog({super.key, required this.companyId, this.initialData});
+  const AddMiddleManDialog({
+    super.key,
+    required this.companyId,
+    this.initialData,
+  });
 
   @override
   State<AddMiddleManDialog> createState() => _AddMiddleManDialogState();
@@ -13,6 +17,7 @@ class AddMiddleManDialog extends StatefulWidget {
 class _AddMiddleManDialogState extends State<AddMiddleManDialog> {
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _balanceController = TextEditingController();
   bool _isLoading = false;
 
   @override
@@ -21,6 +26,8 @@ class _AddMiddleManDialogState extends State<AddMiddleManDialog> {
     if (widget.initialData != null) {
       _nameController.text = widget.initialData!['name'] ?? '';
       _phoneController.text = widget.initialData!['phone_number'] ?? '';
+      _balanceController.text = (widget.initialData!['total_balance'] ?? 0.0)
+          .toString();
     }
   }
 
@@ -37,21 +44,23 @@ class _AddMiddleManDialogState extends State<AddMiddleManDialog> {
 
     setState(() => _isLoading = true);
 
-    // Mock API delay
-    await Future.delayed(const Duration(seconds: 1));
+    // No need for artificial delay in online mode
 
     if (mounted) {
       Navigator.pop(context, {
-        'id': widget.initialData?['id'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
+        'id': widget.initialData?['id'],
         'name': name,
         'phone_number': phone,
         'company_id': widget.companyId,
+        'total_balance': double.tryParse(_balanceController.text) ?? 0.0,
       }); // Return data to parent
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(widget.initialData != null 
-              ? 'Middle Man updated successfully (Local Mock)!' 
-              : 'Middle Man added successfully (Local Mock)!'),
+          content: Text(
+            widget.initialData != null
+                ? 'Middle Man updated successfully!'
+                : 'Middle Man added successfully!',
+          ),
           backgroundColor: Colors.green,
         ),
       );
@@ -62,6 +71,7 @@ class _AddMiddleManDialogState extends State<AddMiddleManDialog> {
   void dispose() {
     _nameController.dispose();
     _phoneController.dispose();
+    _balanceController.dispose();
     super.dispose();
   }
 
@@ -91,7 +101,10 @@ class _AddMiddleManDialogState extends State<AddMiddleManDialog> {
               decoration: InputDecoration(
                 labelText: 'Name',
                 labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
-                prefixIcon: const Icon(Icons.person_outline, color: Colors.orangeAccent),
+                prefixIcon: const Icon(
+                  Icons.person_outline,
+                  color: Colors.orangeAccent,
+                ),
                 filled: true,
                 fillColor: Colors.white.withOpacity(0.05),
                 border: OutlineInputBorder(
@@ -108,7 +121,30 @@ class _AddMiddleManDialogState extends State<AddMiddleManDialog> {
               decoration: InputDecoration(
                 labelText: 'Phone Number',
                 labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
-                prefixIcon: const Icon(Icons.phone_outlined, color: Colors.orangeAccent),
+                prefixIcon: const Icon(
+                  Icons.phone_outlined,
+                  color: Colors.orangeAccent,
+                ),
+                filled: true,
+                fillColor: Colors.white.withOpacity(0.05),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _balanceController,
+              keyboardType: TextInputType.number,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                labelText: 'Total Balance (Outstanding)',
+                labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                prefixIcon: const Icon(
+                  Icons.account_balance_wallet_outlined,
+                  color: Colors.orangeAccent,
+                ),
                 filled: true,
                 fillColor: Colors.white.withOpacity(0.05),
                 border: OutlineInputBorder(
@@ -122,7 +158,7 @@ class _AddMiddleManDialogState extends State<AddMiddleManDialog> {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 TextButton(
-                  onPressed: () => Navigator.pop(context, false),
+                  onPressed: () => Navigator.pop(context),
                   child: Text(
                     'Cancel',
                     style: TextStyle(color: Colors.white.withOpacity(0.6)),
@@ -136,7 +172,10 @@ class _AddMiddleManDialogState extends State<AddMiddleManDialog> {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
                   ),
                   child: _isLoading
                       ? const SizedBox(

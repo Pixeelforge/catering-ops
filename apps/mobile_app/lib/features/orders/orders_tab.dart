@@ -16,7 +16,74 @@ class _OrdersTabState extends State<OrdersTab> {
   final _supabase = Supabase.instance.client;
   List<Map<String, dynamic>> _allOrders = [];
   bool _isLoading = true;
-  String _currentFilter = 'all'; // 'all', 'upcoming', 'completed', 'pending_payment'
+  String _currentFilter =
+      'all'; // 'all', 'upcoming', 'completed', 'pending_payment'
+  String? _expandedOrderId;
+
+  Future<void> _sendToKhata(
+    String orderId,
+    String tag,
+    double amount,
+    bool isAlreadySaved,
+  ) async {
+    if (isAlreadySaved) {
+      _toast('Already saved to Khata');
+      return;
+    }
+
+    try {
+      // Parse "Name (Phone)"
+      final nameEnd = tag.lastIndexOf(' (');
+      if (nameEnd == -1) return;
+
+      final name = tag.substring(0, nameEnd);
+      final phone = tag.substring(nameEnd + 2, tag.length - 1);
+
+      // 1. Check if middle man already exists for this company/phone
+      final existing = await _supabase
+          .from('middle_men')
+          .select()
+          .eq('company_id', widget.companyId)
+          .eq('phone_number', phone)
+          .maybeSingle();
+
+      if (existing != null) {
+        // 2. Update existing balance
+        final double currentBalance =
+            (existing['total_balance'] as num?)?.toDouble() ?? 0.0;
+        await _supabase
+            .from('middle_men')
+            .update({'total_balance': currentBalance + amount})
+            .eq('id', existing['id']);
+      } else {
+        // 3. Create new middle man
+        await _supabase.from('middle_men').insert({
+          'company_id': widget.companyId,
+          'name': name,
+          'phone_number': phone,
+          'total_balance': amount,
+        });
+      }
+
+      // 4. Mark order as saved to Khata
+      await _supabase
+          .from('orders')
+          .update({'is_khata_saved': true})
+          .eq('id', orderId);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Saved to $name\'s Khata (Online)'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error sending to Khata: $e');
+      _toast('Error: $e');
+    }
+  }
 
   RealtimeChannel? _ordersSubscription;
 
@@ -40,7 +107,7 @@ class _OrdersTabState extends State<OrdersTab> {
           .select()
           .eq('company_id', widget.companyId)
           .order('event_date', ascending: true);
-          
+
       if (mounted) {
         setState(() {
           _allOrders = List<Map<String, dynamic>>.from(data);
@@ -73,16 +140,22 @@ class _OrdersTabState extends State<OrdersTab> {
   List<Map<String, dynamic>> get _filteredOrders {
     if (_currentFilter == 'all') return _allOrders;
     return _allOrders.where((order) {
-      if (_currentFilter == 'upcoming') return order['order_status'] == 'upcoming';
-      if (_currentFilter == 'completed') return order['order_status'] == 'completed';
-      if (_currentFilter == 'pending_payment') return order['payment_status'] == 'pending';
+      if (_currentFilter == 'upcoming')
+        return order['order_status'] == 'upcoming';
+      if (_currentFilter == 'completed')
+        return order['order_status'] == 'completed';
+      if (_currentFilter == 'pending_payment')
+        return order['payment_status'] == 'pending';
       return true;
     }).toList();
   }
 
   Future<void> _updateOrderStatus(String id, String newStatus) async {
     try {
-      await _supabase.from('orders').update({'order_status': newStatus}).eq('id', id);
+      await _supabase
+          .from('orders')
+          .update({'order_status': newStatus})
+          .eq('id', id);
     } catch (e) {
       _toast('Error updating order: $e');
     }
@@ -90,15 +163,29 @@ class _OrdersTabState extends State<OrdersTab> {
 
   Future<void> _updatePaymentStatus(String id, String newStatus) async {
     try {
-      await _supabase.from('orders').update({'payment_status': newStatus}).eq('id', id);
+      await _supabase
+          .from('orders')
+          .update({'payment_status': newStatus})
+          .eq('id', id);
     } catch (e) {
       _toast('Error updating payment: $e');
     }
   }
 
+  Future<void> _deleteOrder(String id) async {
+    try {
+      await _supabase.from('orders').delete().eq('id', id);
+      _toast('Order deleted');
+    } catch (e) {
+      _toast('Error deleting order: $e');
+    }
+  }
+
   void _toast(String msg) {
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.orangeAccent));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), backgroundColor: Colors.orangeAccent),
+      );
     }
   }
 
@@ -126,244 +213,510 @@ class _OrdersTabState extends State<OrdersTab> {
 
   Widget _buildOrderCard(Map<String, dynamic> order) {
     final DateTime eventDate = DateTime.parse(order['event_date']).toLocal();
-    final String formattedDate = DateFormat('EEE, MMM d • h:mm a').format(eventDate);
+    final String formattedDate = DateFormat(
+      'EEE, MMM d • h:mm a',
+    ).format(eventDate);
     final String clientName = order['client_name'] ?? 'Unknown';
     final List<dynamic> menuItems = order['menu_items'] ?? [];
     final double totalValue = (order['total_value'] as num).toDouble();
     final bool isPaid = order['payment_status'] == 'paid';
     final bool isCompleted = order['order_status'] == 'completed';
     final String? middlemanTag = order['middleman_tag'];
+    final bool isKhataSaved = order['is_khata_saved'] == true;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white10),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Header Section
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.black12,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-              border: const Border(bottom: BorderSide(color: Colors.white10)),
+    final bool isExpanded = _expandedOrderId == order['id'];
+
+    return Dismissible(
+      key: Key(order['id']),
+      direction: DismissDirection.endToStart,
+      confirmDismiss: (direction) async {
+        return await showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            backgroundColor: const Color(0xFF1A1A2E),
+            title: const Text(
+              'Delete Order',
+              style: TextStyle(color: Colors.white),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Client label
-                      Row(
-                        children: [
-                          const Text('Client: ', style: TextStyle(color: Colors.white54, fontSize: 13)),
-                          Flexible(
-                            child: Text(
-                              clientName,
-                              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          const Icon(Icons.calendar_today, color: Colors.orangeAccent, size: 14),
-                          const SizedBox(width: 6),
-                          Flexible(
-                            child: Text(formattedDate, style: const TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold, fontSize: 13)),
-                          ),
-                        ],
-                      ),
-                      if (middlemanTag != null && middlemanTag.isNotEmpty) ...[
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            const Icon(Icons.person, color: Color(0xFFD4A237), size: 14),
-                            const SizedBox(width: 4),
-                            const Text('Middleman: ', style: TextStyle(color: Colors.white54, fontSize: 12)),
-                            Flexible(
-                              child: Text(middlemanTag, style: const TextStyle(color: Color(0xFFD4A237), fontSize: 13, fontWeight: FontWeight.bold)),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ],
+            content: const Text(
+              'Are you sure you want to delete this order?',
+              style: TextStyle(color: Colors.white70),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(
+                  'Cancel',
+                  style: TextStyle(color: Colors.white.withOpacity(0.5)),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.redAccent,
+                ),
+                child: const Text(
+                  'Delete',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+      onDismissed: (direction) => _deleteOrder(order['id']),
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        margin: const EdgeInsets.only(bottom: 16),
+        decoration: BoxDecoration(
+          color: Colors.redAccent.withOpacity(0.8),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: const Icon(Icons.delete, color: Colors.white, size: 32),
+      ),
+      child: GestureDetector(
+        onTap: () {
+          setState(() {
+            _expandedOrderId = isExpanded ? null : order['id'];
+          });
+        },
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isExpanded
+                  ? Colors.orangeAccent.withOpacity(0.5)
+                  : Colors.white10,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Header Section (Always Visible)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.black12,
+                  borderRadius: BorderRadius.vertical(
+                    top: const Radius.circular(20),
+                    bottom: isExpanded
+                        ? Radius.zero
+                        : const Radius.circular(20),
+                  ),
+                  border: const Border(
+                    bottom: BorderSide(color: Colors.white10),
                   ),
                 ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+                child: Column(
                   children: [
-                    Text(
-                      '₹${totalValue.toStringAsFixed(2)}',
-                      style: const TextStyle(color: Colors.greenAccent, fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 8),
-                    InkWell(
-                      onTap: () => _updatePaymentStatus(order['id'], isPaid ? 'pending' : 'paid'),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: isPaid ? Colors.greenAccent.withOpacity(0.1) : Colors.redAccent.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: isPaid ? Colors.greenAccent : Colors.redAccent),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            clientName,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                        child: Text(
-                          isPaid ? 'PAID' : 'PENDING PAYMENT',
-                          style: TextStyle(
-                            color: isPaid ? Colors.greenAccent : Colors.redAccent,
-                            fontSize: 10,
+                        Text(
+                          '₹${totalValue.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            color: Colors.greenAccent,
+                            fontSize: 18,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                      ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.calendar_today,
+                              color: Colors.orangeAccent,
+                              size: 14,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              formattedDate,
+                              style: const TextStyle(
+                                color: Colors.orangeAccent,
+                                fontWeight: FontWeight.normal,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                        InkWell(
+                          onTap: () => _updatePaymentStatus(
+                            order['id'],
+                            isPaid ? 'pending' : 'paid',
+                          ),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isPaid
+                                  ? Colors.greenAccent.withOpacity(0.1)
+                                  : Colors.redAccent.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isPaid
+                                    ? Colors.greenAccent
+                                    : Colors.redAccent,
+                              ),
+                            ),
+                            child: Text(
+                              isPaid ? 'PAID' : 'PENDING PAYMENT',
+                              style: TextStyle(
+                                color: isPaid
+                                    ? Colors.greenAccent
+                                    : Colors.redAccent,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
-          ),
-          
-          // Menu Items Section
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Menu Items:', style: TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: menuItems.map((item) {
-                    return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(8),
+              ),
+
+              // Expandable Section
+              AnimatedCrossFade(
+                firstChild: const SizedBox.shrink(),
+                secondChild: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (middlemanTag != null && middlemanTag.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.person,
+                              color: Color(0xFFD4A237),
+                              size: 14,
+                            ),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Middleman: ',
+                              style: TextStyle(
+                                color: Colors.white54,
+                                fontSize: 13,
+                              ),
+                            ),
+                            Flexible(
+                              child: Text(
+                                middlemanTag,
+                                style: const TextStyle(
+                                  color: Color(0xFFD4A237),
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
+
+                    // Menu Items Section
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('${item['quantity']}x', style: const TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold, fontSize: 12)),
-                          const SizedBox(width: 6),
-                          Text(item['name'], style: const TextStyle(color: Colors.white, fontSize: 12)),
+                          const Text(
+                            'Menu Items:',
+                            style: TextStyle(
+                              color: Colors.white54,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: menuItems.map((item) {
+                              return Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.05),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      (item['quantity_type'] == 'persons')
+                                          ? 'For ${item['quantity']} Persons'
+                                          : '${item['quantity']}x',
+                                      style: const TextStyle(
+                                        color: Colors.orangeAccent,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      item['name'],
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                          ),
                         ],
                       ),
-                    );
-                  }).toList(),
-                ),
-              ],
-            ),
-          ),
-          
-          // Actions Footer
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: const BoxDecoration(
-              border: Border(top: BorderSide(color: Colors.white10)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      isCompleted ? 'Order Completed' : 'Upcoming Event',
-                      style: TextStyle(
-                        color: isCompleted ? Colors.white54 : Colors.orangeAccent,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
                     ),
-                    TextButton(
-                      onPressed: () => _updateOrderStatus(order['id'], isCompleted ? 'upcoming' : 'completed'),
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        backgroundColor: isCompleted ? Colors.white10 : Colors.orangeAccent.withOpacity(0.2),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+
+                    // Actions Footer
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
                       ),
-                      child: Text(
-                        isCompleted ? 'MARK UPCOMING' : 'MARK COMPLETED',
-                        style: TextStyle(
-                          color: isCompleted ? Colors.white54 : Colors.orangeAccent,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
+                      decoration: const BoxDecoration(
+                        border: Border(top: BorderSide(color: Colors.white10)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                isCompleted
+                                    ? 'Order Completed'
+                                    : 'Upcoming Event',
+                                style: TextStyle(
+                                  color: isCompleted
+                                      ? Colors.white54
+                                      : Colors.orangeAccent,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: () => _updateOrderStatus(
+                                  order['id'],
+                                  isCompleted ? 'upcoming' : 'completed',
+                                ),
+                                style: TextButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 8,
+                                  ),
+                                  backgroundColor: isCompleted
+                                      ? Colors.white10
+                                      : Colors.orangeAccent.withOpacity(0.2),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                child: Text(
+                                  isCompleted
+                                      ? 'MARK UPCOMING'
+                                      : 'MARK COMPLETED',
+                                  style: TextStyle(
+                                    color: isCompleted
+                                        ? Colors.white54
+                                        : Colors.orangeAccent,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          // Assign for Delivery
+                          Padding(
+                            padding: const EdgeInsets.only(top: 10),
+                            child: SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                onPressed: () {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Assign for Delivery — coming soon!',
+                                      ),
+                                      backgroundColor: Color(0xFF8B6914),
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(
+                                  Icons.delivery_dining,
+                                  color: Colors.black87,
+                                  size: 18,
+                                ),
+                                label: const Text(
+                                  'Assign for Delivery',
+                                  style: TextStyle(
+                                    color: Colors.black87,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFFD4A237),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
+                                  elevation: 0,
+                                ),
+                              ),
+                            ),
+                          ),
+                          // Send to Khata
+                          if (middlemanTag != null && middlemanTag.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton.icon(
+                                  onPressed: isKhataSaved
+                                      ? null
+                                      : () => _sendToKhata(
+                                          order['id'],
+                                          middlemanTag,
+                                          totalValue,
+                                          isKhataSaved,
+                                        ),
+                                  icon: Icon(
+                                    isKhataSaved
+                                        ? Icons.check_circle
+                                        : Icons.person_pin_circle_outlined,
+                                    color: Colors.white,
+                                    size: 18,
+                                  ),
+                                  label: Text(
+                                    isKhataSaved
+                                        ? 'Saved to $middlemanTag\'s Khata'
+                                        : 'Send to $middlemanTag\'s Khata',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: isKhataSaved
+                                        ? Colors.grey
+                                        : const Color(0xFF2E7D32),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12,
+                                    ),
+                                    elevation: 0,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          // Delete Order Button
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: TextButton.icon(
+                              onPressed: () async {
+                                final confirm = await showDialog<bool>(
+                                  context: context,
+                                  builder: (context) => AlertDialog(
+                                    backgroundColor: const Color(0xFF1A1A2E),
+                                    title: const Text(
+                                      'Delete Order',
+                                      style: TextStyle(color: Colors.white),
+                                    ),
+                                    content: const Text(
+                                      'Are you sure you want to delete this order?',
+                                      style: TextStyle(color: Colors.white70),
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(context, false),
+                                        child: Text(
+                                          'Cancel',
+                                          style: TextStyle(
+                                            color: Colors.white.withOpacity(
+                                              0.5,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      ElevatedButton(
+                                        onPressed: () =>
+                                            Navigator.pop(context, true),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.redAccent,
+                                        ),
+                                        child: const Text(
+                                          'Delete',
+                                          style: TextStyle(color: Colors.white),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                                if (confirm == true) {
+                                  _deleteOrder(order['id']);
+                                }
+                              },
+                              icon: const Icon(
+                                Icons.delete_outline,
+                                color: Colors.redAccent,
+                                size: 18,
+                              ),
+                              label: const Text(
+                                'Delete Order',
+                                style: TextStyle(
+                                  color: Colors.redAccent,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
-                // Assign for Delivery button — always visible
-                Padding(
-                  padding: const EdgeInsets.only(top: 10),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Assign for Delivery — coming soon!'),
-                            backgroundColor: Color(0xFF8B6914),
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.delivery_dining, color: Colors.black87, size: 18),
-                      label: const Text(
-                        'Assign for Delivery',
-                        style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 13),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFD4A237),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        elevation: 0,
-                      ),
-                    ),
-                  ),
-                ),
-                // Send to Khata button — only shown when middleman is set
-                if (middlemanTag != null && middlemanTag.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Sending to $middlemanTag\'s Khata... (coming soon!)'),
-                              backgroundColor: const Color(0xFF2E7D32),
-                            ),
-                          );
-                        },
-                        icon: const Icon(Icons.person_pin_circle_outlined, color: Colors.white, size: 18),
-                        label: Text(
-                          'Send to $middlemanTag\'s Khata',
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF2E7D32),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          elevation: 0,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
+                crossFadeState: isExpanded
+                    ? CrossFadeState.showSecond
+                    : CrossFadeState.showFirst,
+                duration: const Duration(milliseconds: 200),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -380,15 +733,21 @@ class _OrdersTabState extends State<OrdersTab> {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => CreateOrderScreen(companyId: widget.companyId),
+              builder: (context) =>
+                  CreateOrderScreen(companyId: widget.companyId),
             ),
           );
         },
         icon: const Icon(Icons.add, color: Colors.black),
-        label: const Text('New Order', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+        label: const Text(
+          'New Order',
+          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+        ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Colors.orangeAccent))
+          ? const Center(
+              child: CircularProgressIndicator(color: Colors.orangeAccent),
+            )
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -404,7 +763,7 @@ class _OrdersTabState extends State<OrdersTab> {
                     ),
                   ),
                 ),
-                
+
                 // Filters
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
@@ -419,7 +778,7 @@ class _OrdersTabState extends State<OrdersTab> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                
+
                 // List
                 Expanded(
                   child: orders.isEmpty
@@ -427,17 +786,29 @@ class _OrdersTabState extends State<OrdersTab> {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.assignment_outlined, size: 64, color: Colors.white.withOpacity(0.1)),
+                              Icon(
+                                Icons.assignment_outlined,
+                                size: 64,
+                                color: Colors.white.withOpacity(0.1),
+                              ),
                               const SizedBox(height: 16),
                               Text(
                                 'No orders found',
-                                style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 16),
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.5),
+                                  fontSize: 16,
+                                ),
                               ),
                             ],
                           ),
                         )
                       : ListView.builder(
-                          padding: const EdgeInsets.fromLTRB(24, 0, 24, 100), // padding for FAB
+                          padding: const EdgeInsets.fromLTRB(
+                            24,
+                            0,
+                            24,
+                            100,
+                          ), // padding for FAB
                           itemCount: orders.length,
                           itemBuilder: (context, index) {
                             return _buildOrderCard(orders[index]);

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
@@ -86,16 +87,22 @@ class _OrdersTabState extends State<OrdersTab> {
   }
 
   RealtimeChannel? _ordersSubscription;
+  Timer? _countdownTimer;
 
   @override
   void initState() {
     super.initState();
     _fetchOrders();
     _setupRealtime();
+    // Initialize the countdown timer
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
   void dispose() {
+    _countdownTimer?.cancel(); // Dispose of the countdown timer
     _ordersSubscription?.unsubscribe();
     super.dispose();
   }
@@ -176,6 +183,11 @@ class _OrdersTabState extends State<OrdersTab> {
     try {
       await _supabase.from('orders').delete().eq('id', id);
       _toast('Order deleted');
+      if (mounted) {
+        setState(() {
+          _allOrders.removeWhere((o) => o['id'] == id);
+        });
+      }
     } catch (e) {
       _toast('Error deleting order: $e');
     }
@@ -223,6 +235,8 @@ class _OrdersTabState extends State<OrdersTab> {
     final bool isCompleted = order['order_status'] == 'completed';
     final String? middlemanTag = order['middleman_tag'];
     final bool isKhataSaved = order['is_khata_saved'] == true;
+    final String? deliveryStaffId = order['delivery_staff_id'];
+    final bool isDeliveryOpen = order['is_delivery_open'] == true;
 
     final bool isExpanded = _expandedOrderId == order['id'];
 
@@ -435,6 +449,94 @@ class _OrdersTabState extends State<OrdersTab> {
                           ],
                         ),
                       ),
+                      
+                    // Delivery Assignment Status
+                    if (isDeliveryOpen || deliveryStaffId != null)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.delivery_dining,
+                                  color: isDeliveryOpen ? Colors.purpleAccent : Colors.lightBlue,
+                                  size: 14,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  isDeliveryOpen ? 'Status: ' : 'Assigned to: ',
+                                  style: const TextStyle(
+                                    color: Colors.white54,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                                if (isDeliveryOpen)
+                                  const Flexible(
+                                    child: Text(
+                                      'Open for Bidding',
+                                      style: TextStyle(
+                                        color: Colors.purpleAccent,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  )
+                                else
+                                  Flexible(
+                                    child: FutureBuilder(
+                                      future: _supabase
+                                          .from('profiles')
+                                          .select('full_name')
+                                          .eq('id', deliveryStaffId!)
+                                          .maybeSingle(),
+                                      builder: (context, snapshot) {
+                                        final name = snapshot.data?['full_name'] ?? 'Loading...';
+                                        return Text(
+                                          name,
+                                          style: const TextStyle(
+                                            color: Colors.lightBlue,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            if (order['delivery_fare'] != null)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4, left: 22),
+                                child: Text(
+                                  isDeliveryOpen ? 'Base Fare: ₹${order['delivery_fare']}' : 'Delivery Fare: ₹${order['delivery_fare']}',
+                                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                                ),
+                              ),
+                            if (isDeliveryOpen && order['delivery_bidding_ends_at'] != null)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4, left: 22),
+                                child: Builder(
+                                  builder: (context) {
+                                    final endAt = DateTime.parse(order['delivery_bidding_ends_at']).toLocal();
+                                    final now = DateTime.now();
+                                    if (now.isAfter(endAt)) {
+                                      // Timer expired, trigger resolution
+                                      _supabase.rpc('resolve_delivery_auction', params: {'p_order_id': order['id']}).then((_) => _fetchOrders());
+                                      return const Text('Resolving Auction...', style: TextStyle(color: Colors.redAccent, fontSize: 12));
+                                    }
+                                    final diff = endAt.difference(now);
+                                    return Text(
+                                      'Bidding Ends in: ${diff.inMinutes}m ${diff.inSeconds % 60}s',
+                                      style: const TextStyle(color: Colors.orangeAccent, fontSize: 12),
+                                    );
+                                  },
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
 
                     // Menu Items Section
                     Padding(
@@ -559,24 +661,15 @@ class _OrdersTabState extends State<OrdersTab> {
                             child: SizedBox(
                               width: double.infinity,
                               child: ElevatedButton.icon(
-                                onPressed: () {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Assign for Delivery — coming soon!',
-                                      ),
-                                      backgroundColor: Color(0xFF8B6914),
-                                    ),
-                                  );
-                                },
+                                onPressed: () => _showAssignDialog(order['id']),
                                 icon: const Icon(
                                   Icons.delivery_dining,
                                   color: Colors.black87,
                                   size: 18,
                                 ),
-                                label: const Text(
-                                  'Assign for Delivery',
-                                  style: TextStyle(
+                                label: Text(
+                                  (deliveryStaffId != null || isDeliveryOpen) ? 'Re-assign Delivery' : 'Assign for Delivery',
+                                  style: const TextStyle(
                                     color: Colors.black87,
                                     fontWeight: FontWeight.bold,
                                     fontSize: 13,
@@ -817,6 +910,166 @@ class _OrdersTabState extends State<OrdersTab> {
                 ),
               ],
             ),
+    );
+  }
+
+  Future<void> _showAssignDialog(String orderId) async {
+    final fareController = TextEditingController();
+    int selectedDuration = 15;
+    String selectedStaffId = '';
+    String assignmentType = 'none'; // 'specific', 'open', 'none'
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF1A1A2E),
+              title: const Text(
+                'Delivery Assignment',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Select Assignment Type:', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      dropdownColor: const Color(0xFF1A1A2E),
+                      value: assignmentType,
+                      items: const [
+                        DropdownMenuItem(value: 'none', child: Text('Remove Assignment', style: TextStyle(color: Colors.redAccent))),
+                        DropdownMenuItem(value: 'specific', child: Text('Assign to Specific Staff', style: TextStyle(color: Colors.orangeAccent))),
+                        DropdownMenuItem(value: 'open', child: Text('Open for All (Bidding)', style: TextStyle(color: Colors.purpleAccent))),
+                      ],
+                      onChanged: (val) => setDialogState(() => assignmentType = val!),
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: Colors.white.withOpacity(0.05),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      ),
+                    ),
+                    if (assignmentType != 'none') ...[
+                      const SizedBox(height: 16),
+                      Text(
+                        assignmentType == 'specific' ? 'Delivery Fare (₹):' : 'Base Fare (₹):',
+                        style: const TextStyle(color: Colors.white70, fontSize: 12),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: fareController,
+                        keyboardType: TextInputType.number,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: InputDecoration(
+                          hintText: 'Enter amount',
+                          hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
+                          filled: true,
+                          fillColor: Colors.white.withOpacity(0.05),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        ),
+                      ),
+                    ],
+                    if (assignmentType == 'specific') ...[
+                      const SizedBox(height: 16),
+                      const Text('Select Staff Member:', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                      const SizedBox(height: 8),
+                      FutureBuilder(
+                        future: _supabase
+                            .from('profiles')
+                            .select('id, full_name')
+                            .eq('company_id', widget.companyId)
+                            .eq('role', 'staff'),
+                        builder: (context, snapshot) {
+                          if (!snapshot.hasData) return const CircularProgressIndicator();
+                          final staffList = List<Map<String, dynamic>>.from(snapshot.data ?? []);
+                          return DropdownButtonFormField<String>(
+                            dropdownColor: const Color(0xFF1A1A2E),
+                            value: selectedStaffId.isEmpty ? null : selectedStaffId,
+                            items: staffList.map((s) => DropdownMenuItem(value: s['id'] as String, child: Text(s['full_name'], style: const TextStyle(color: Colors.white)))).toList(),
+                            onChanged: (val) => setDialogState(() => selectedStaffId = val!),
+                            decoration: InputDecoration(
+                              filled: true,
+                              fillColor: Colors.white.withOpacity(0.05),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                    if (assignmentType == 'open') ...[
+                      const SizedBox(height: 16),
+                      const Text('Bidding Duration:', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<int>(
+                        dropdownColor: const Color(0xFF1A1A2E),
+                        value: selectedDuration,
+                        items: const [
+                          DropdownMenuItem(value: 15, child: Text('15 Minutes', style: TextStyle(color: Colors.white))),
+                          DropdownMenuItem(value: 30, child: Text('30 Minutes', style: TextStyle(color: Colors.white))),
+                          DropdownMenuItem(value: 60, child: Text('1 Hour', style: TextStyle(color: Colors.white))),
+                          DropdownMenuItem(value: 120, child: Text('2 Hours', style: TextStyle(color: Colors.white))),
+                        ],
+                        onChanged: (val) => setDialogState(() => selectedDuration = val!),
+                        decoration: InputDecoration(
+                          filled: true,
+                          fillColor: Colors.white.withOpacity(0.05),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    if (assignmentType != 'none' && fareController.text.isEmpty) {
+                      _toast('Please enter a fare amount');
+                      return;
+                    }
+                    if (assignmentType == 'specific' && selectedStaffId.isEmpty) {
+                      _toast('Please select a staff member');
+                      return;
+                    }
+
+                    final double fare = double.tryParse(fareController.text) ?? 0.0;
+                    final biddingEndsAt = assignmentType == 'open'
+                        ? DateTime.now().add(Duration(minutes: selectedDuration)).toUtc().toIso8601String()
+                        : null;
+
+                    try {
+                      final updates = {
+                        'delivery_staff_id': assignmentType == 'specific' ? selectedStaffId : null,
+                        'is_delivery_open': assignmentType == 'open',
+                        'delivery_fare': assignmentType == 'none' ? null : fare,
+                        'delivery_bidding_ends_at': biddingEndsAt,
+                      };
+
+                      await _supabase.from('orders').update(updates).eq('id', orderId);
+                      _toast('Delivery settings updated');
+                      if (mounted) Navigator.pop(context);
+                    } catch (e) {
+                      _toast('Error: $e');
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFD4A237),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: const Text('Confirm', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }

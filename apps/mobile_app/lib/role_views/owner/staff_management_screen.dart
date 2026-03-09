@@ -52,7 +52,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
       debugPrint('Fetching staff for company: ${widget.companyId}');
       final data = await supabase
           .from('profiles')
-          .select('full_name, phone, role, is_online')
+          .select('id, full_name, phone, role, is_online')
           .eq('company_id', widget.companyId)
           .eq('role', 'staff');
 
@@ -188,27 +188,118 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
               ],
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: (staff['is_online'] == true)
-                  ? Colors.green.withOpacity(0.1)
-                  : Colors.redAccent.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              (staff['is_online'] == true) ? 'Active' : 'Offline',
-              style: TextStyle(
-                color: (staff['is_online'] == true)
-                    ? Colors.greenAccent
-                    : Colors.redAccent,
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: (staff['is_online'] == true)
+                      ? Colors.green.withOpacity(0.1)
+                      : Colors.redAccent.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  (staff['is_online'] == true) ? 'Active' : 'Offline',
+                  style: TextStyle(
+                    color: (staff['is_online'] == true)
+                        ? Colors.greenAccent
+                        : Colors.redAccent,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(height: 8),
+              InkWell(
+                onTap: () => _promptRemoveStaff(staff),
+                child: const Text(
+                  'Remove',
+                  style: TextStyle(
+                    color: Colors.redAccent,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
+
+  Future<void> _promptRemoveStaff(Map<String, dynamic> staff) async {
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF161626),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: Colors.white.withOpacity(0.1)),
+          ),
+          title: const Text('Remove Staff', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          content: Text(
+            'Are you sure you want to remove ${staff['full_name']} from your company?',
+            style: const TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text('Remove', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm == true) {
+      _removeStaff(staff['id'], staff['full_name']);
+    }
+  }
+
+  Future<void> _removeStaff(String staffId, String? staffName) async {
+    try {
+      if (staffId.isEmpty) return;
+
+      // Update the profile to remove the company_id and reset the role if necessary
+      await supabase
+          .from('profiles')
+          .update({'company_id': null})
+          .eq('id', staffId);
+
+      if (mounted) {
+        setState(() {
+          _staffMembers.removeWhere((s) => s['id'] == staffId);
+        });
+        // We still call fetch to ensure total sync after local UI update
+        _fetchStaff();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Removed ${staffName ?? 'staff'}'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error removing staff: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
+  }
 }
+

@@ -10,7 +10,8 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class _DashboardScreenState extends State<DashboardScreen>
+    with WidgetsBindingObserver {
   String? _role;
   String? _errorMessage;
   bool _loading = true;
@@ -18,7 +19,39 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _fetchUserRole();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _setOnlineStatus(false);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _setOnlineStatus(false);
+    } else if (state == AppLifecycleState.resumed) {
+      _setOnlineStatus(true);
+    }
+  }
+
+  Future<void> _setOnlineStatus(bool online) async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user != null) {
+      try {
+        await Supabase.instance.client
+            .from('profiles')
+            .update({'is_online': online})
+            .eq('id', user.id);
+      } catch (e) {
+        debugPrint('Error updating online status: $e');
+      }
+    }
   }
 
   Future<void> _fetchUserRole() async {
@@ -44,6 +77,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _role = res['role'] as String;
           _loading = false;
         });
+
+        // 🔹 Update online status to true whenever dashboard is initialized
+        _setOnlineStatus(true);
       }
     } catch (e) {
       debugPrint('Error fetching role: $e');
@@ -88,6 +124,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             TextButton(
               onPressed: () async {
+                await _setOnlineStatus(false);
                 await Supabase.instance.client.auth.signOut();
                 if (context.mounted)
                   Navigator.pushReplacementNamed(context, '/login');

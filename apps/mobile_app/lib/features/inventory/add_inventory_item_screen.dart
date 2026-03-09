@@ -15,7 +15,7 @@ class _AddInventoryItemScreenState extends State<AddInventoryItemScreen> {
   final _nameCtrl = TextEditingController();
   final _qtyCtrl = TextEditingController();
   final _imgCtrl = TextEditingController();
-  
+
   String _selectedCategory = 'Produce';
   final List<String> _categories = [
     'Produce',
@@ -24,13 +24,88 @@ class _AddInventoryItemScreenState extends State<AddInventoryItemScreen> {
     'Dry Goods',
     'Beverages',
     'Equipment',
-    'Other'
+    'Other',
   ];
 
-  String _selectedUnit = 'kg';
-  final List<String> _units = ['kg', 'lbs', 'liters', 'gallons', 'units', 'boxes'];
-
+  String _selectedUnit = 'kgs';
+  List<String> _units = ['kgs', 'litres', 'boxes', 'units'];
   bool _isSubmitting = false;
+  bool _isLoadingUnits = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchUnits();
+  }
+
+  Future<void> _fetchUnits() async {
+    try {
+      final data = await Supabase.instance.client
+          .from('inventory_units')
+          .select('name')
+          .eq('company_id', widget.companyId);
+
+      final dbUnits = (data as List).map((e) => e['name'] as String).toList();
+
+      setState(() {
+        // Merge defaults with DB units, remove duplicates
+        _units = {
+          ...['kgs', 'litres', 'boxes', 'units'],
+          ...dbUnits,
+        }.toList();
+        _isLoadingUnits = false;
+      });
+    } catch (e) {
+      debugPrint('Error fetching units: $e');
+      setState(() => _isLoadingUnits = false);
+    }
+  }
+
+  Future<void> _addNewUnitDialog() async {
+    final ctrl = TextEditingController();
+    final newUnit = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A2E),
+        title: const Text(
+          'Add New Unit',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(
+            labelText: 'Unit Name (e.g. Plates, Packets)',
+            labelStyle: TextStyle(color: Colors.white54),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, ctrl.text.trim()),
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+
+    if (newUnit != null && newUnit.isNotEmpty && mounted) {
+      try {
+        await Supabase.instance.client.from('inventory_units').insert({
+          'company_id': widget.companyId,
+          'name': newUnit,
+        });
+        await _fetchUnits();
+        setState(() => _selectedUnit = newUnit);
+      } catch (e) {
+        debugPrint('Error adding unit: $e');
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -94,98 +169,130 @@ class _AddInventoryItemScreenState extends State<AddInventoryItemScreen> {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildTextField(
-                controller: _nameCtrl,
-                label: 'Item Name',
-                icon: Icons.fastfood_outlined,
-                validator: (val) {
-                  if (val == null || val.trim().isEmpty) return 'Item name is required';
-                  return null;
-                },
-              ),
-              const SizedBox(height: 20),
-              
-              Row(
-                children: [
-                  Expanded(
-                    flex: 2,
-                    child: _buildTextField(
-                      controller: _qtyCtrl,
-                      label: 'Quantity',
-                      icon: Icons.numbers_outlined,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      body: _isLoadingUnits
+          ? const Center(
+              child: CircularProgressIndicator(color: Colors.orangeAccent),
+            )
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildTextField(
+                      controller: _nameCtrl,
+                      label: 'Item Name',
+                      icon: Icons.fastfood_outlined,
                       validator: (val) {
-                        if (val == null || val.trim().isEmpty) return 'Required';
-                        if (double.tryParse(val.trim()) == null) return 'Invalid';
+                        if (val == null || val.trim().isEmpty)
+                          return 'Item name is required';
                         return null;
                       },
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    flex: 1,
-                    child: _buildDropdown(
-                      label: 'Unit',
-                      value: _selectedUnit,
-                      items: _units,
-                      onChanged: (val) => setState(() => _selectedUnit = val!),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
+                    const SizedBox(height: 20),
 
-              _buildDropdown(
-                label: 'Category',
-                value: _selectedCategory,
-                items: _categories,
-                onChanged: (val) => setState(() => _selectedCategory = val!),
-                isFullWidth: true,
-              ),
-              const SizedBox(height: 20),
-
-              _buildTextField(
-                controller: _imgCtrl,
-                label: 'Image URL (Optional)',
-                icon: Icons.image_outlined,
-                keyboardType: TextInputType.url,
-              ),
-              const SizedBox(height: 48),
-
-              SizedBox(
-                width: double.infinity,
-                height: 55,
-                child: ElevatedButton(
-                  onPressed: _isSubmitting ? null : _submit,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orangeAccent,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  child: _isSubmitting
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text(
-                          'SAVE ITEM',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1.2,
+                    Row(
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: _buildTextField(
+                            controller: _qtyCtrl,
+                            label: 'Quantity',
+                            icon: Icons.numbers_outlined,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            validator: (val) {
+                              if (val == null || val.trim().isEmpty)
+                                return 'Required';
+                              if (double.tryParse(val.trim()) == null)
+                                return 'Invalid';
+                              return null;
+                            },
                           ),
                         ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          flex: 1,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              _buildDropdown(
+                                label: 'Unit',
+                                value: _selectedUnit,
+                                items: _units,
+                                onChanged: (val) =>
+                                    setState(() => _selectedUnit = val!),
+                              ),
+                              TextButton(
+                                onPressed: _addNewUnitDialog,
+                                style: TextButton.styleFrom(
+                                  padding: EdgeInsets.zero,
+                                  minimumSize: const Size(0, 30),
+                                ),
+                                child: const Text(
+                                  '+ Add Unit',
+                                  style: TextStyle(
+                                    color: Colors.orangeAccent,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+
+                    _buildDropdown(
+                      label: 'Category',
+                      value: _selectedCategory,
+                      items: _categories,
+                      onChanged: (val) =>
+                          setState(() => _selectedCategory = val!),
+                      isFullWidth: true,
+                    ),
+                    const SizedBox(height: 20),
+
+                    _buildTextField(
+                      controller: _imgCtrl,
+                      label: 'Image URL (Optional)',
+                      icon: Icons.image_outlined,
+                      keyboardType: TextInputType.url,
+                    ),
+                    const SizedBox(height: 48),
+
+                    SizedBox(
+                      width: double.infinity,
+                      height: 55,
+                      child: ElevatedButton(
+                        onPressed: _isSubmitting ? null : _submit,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orangeAccent,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: _isSubmitting
+                            ? const CircularProgressIndicator(
+                                color: Colors.white,
+                              )
+                            : const Text(
+                                'SAVE ITEM',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
-        ),
-      ),
+            ),
     );
   }
 
@@ -228,7 +335,9 @@ class _AddInventoryItemScreenState extends State<AddInventoryItemScreen> {
   }) {
     return DropdownButtonFormField<String>(
       value: value,
-      items: items.map((i) => DropdownMenuItem(value: i, child: Text(i))).toList(),
+      items: items
+          .map((i) => DropdownMenuItem(value: i, child: Text(i)))
+          .toList(),
       onChanged: onChanged,
       dropdownColor: const Color(0xFF1F1F3A),
       style: const TextStyle(color: Colors.white),

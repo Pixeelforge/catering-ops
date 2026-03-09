@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:audioplayers/audioplayers.dart';
 
 class JoinRequestsScreen extends StatefulWidget {
-  const JoinRequestsScreen({super.key});
+  const JoinRequestsScreen({super.key, this.onRequestHandled});
+
+  final VoidCallback? onRequestHandled;
 
   @override
   State<JoinRequestsScreen> createState() => _JoinRequestsScreenState();
@@ -13,19 +16,31 @@ class _JoinRequestsScreenState extends State<JoinRequestsScreen> {
   List<Map<String, dynamic>> _requests = [];
   bool _loading = true;
   String? _companyId;
+  RealtimeChannel? _requestsChannel;
+  final _audioPlayer = AudioPlayer();
 
   @override
   void initState() {
     super.initState();
-    _fetchRequests();
+    _init();
   }
 
-  Future<void> _fetchRequests() async {
+  @override
+  void dispose() {
+    _requestsChannel?.unsubscribe();
+    _audioPlayer.dispose();
+    super.dispose();
+  }
+
+  /// Fetches the company_id first, then starts both data fetch & realtime listener.
+  Future<void> _init() async {
     final user = supabase.auth.currentUser;
-    if (user == null) return;
+    if (user == null) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
 
     try {
-      // 1. Get owner's company_id
       final profileRes = await supabase
           .from('profiles')
           .select('company_id')
@@ -33,12 +48,27 @@ class _JoinRequestsScreenState extends State<JoinRequestsScreen> {
           .maybeSingle();
 
       _companyId = profileRes?['company_id'];
+
       if (_companyId == null) {
         if (mounted) setState(() => _loading = false);
         return;
       }
+    } catch (e) {
+      debugPrint('Error fetching company_id: $e');
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
 
-      // 2. Fetch pending requests with staff profile info
+    // Now that we have companyId, load data and setup realtime
+    await _loadRequests();
+    _setupRealtime();
+  }
+
+  /// Fetches pending requests. Does NOT touch the realtime subscription.
+  Future<void> _loadRequests() async {
+    if (_companyId == null) return;
+
+    try {
       final res = await supabase
           .from('company_join_requests')
           .select('*, profiles(*)')
@@ -58,6 +88,50 @@ class _JoinRequestsScreenState extends State<JoinRequestsScreen> {
     }
   }
 
+  /// Sets up realtime once. Callback only calls _loadRequests (safe, no loop).
+  void _setupRealtime() {
+    if (_companyId == null) return;
+
+    _requestsChannel?.unsubscribe();
+    _requestsChannel = supabase
+        .channel('join_requests_screen_${_companyId}')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'company_join_requests',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'company_id',
+            value: _companyId!,
+          ),
+          callback: (payload) {
+            // Show notification only on new incoming request
+            if (payload.eventType == PostgresChangeEvent.insert) {
+              _audioPlayer.play(AssetSource('sounds/notification.mp3'));
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Row(
+                      children: [
+                        Icon(Icons.person_add, color: Colors.white, size: 18),
+                        SizedBox(width: 8),
+                        Text('New join request received!'),
+                      ],
+                    ),
+                    backgroundColor: Colors.deepOrangeAccent,
+                    duration: const Duration(seconds: 4),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
+            }
+            // Just refresh the list — do NOT call _setupRealtime again
+            _loadRequests();
+          },
+        )
+        .subscribe();
+  }
+
   Future<void> _handleRequest(String requestId, String status) async {
     try {
       await supabase
@@ -66,7 +140,9 @@ class _JoinRequestsScreenState extends State<JoinRequestsScreen> {
           .eq('id', requestId);
 
       _toast(status == 'accepted' ? 'Staff accepted!' : 'Request rejected.');
-      _fetchRequests();
+      // Notify owner_view to refresh badge count immediately
+      widget.onRequestHandled?.call();
+      _loadRequests();
     } catch (e) {
       _toast('Error: ${e.toString()}');
     }
@@ -87,13 +163,10 @@ class _JoinRequestsScreenState extends State<JoinRequestsScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
+        automaticallyImplyLeading: false,
         title: const Text(
           'Join Requests',
           style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        leading: IconButton(
-          onPressed: () => Navigator.pop(context),
-          icon: const Icon(Icons.arrow_back_ios_new, size: 20),
         ),
       ),
       body: _loading
@@ -230,7 +303,7 @@ class _JoinRequestsScreenState extends State<JoinRequestsScreen> {
                   onPressed: () => _handleRequest(requestId, 'accepted'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.greenAccent,
-                    foregroundColor: Color(0xFF1A1A2E),
+                    foregroundColor: const Color(0xFF1A1A2E),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),

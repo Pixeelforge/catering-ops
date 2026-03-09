@@ -1,7 +1,10 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:audioplayers/audioplayers.dart';
 import '../../features/inventory/inventory_list_screen.dart';
+import '../../features/orders/signature_pad_dialog.dart';
 
 class StaffView extends StatefulWidget {
   const StaffView({super.key});
@@ -20,14 +23,23 @@ class _StaffViewState extends State<StaffView> {
   final _companyCodeCtrl = TextEditingController();
   bool _submittingCode = false;
 
-  List<Map<String, dynamic>> _teammates = [];
-  bool _loadingTeammates = false;
-  RealtimeChannel? _teammateSubscription;
-
   Map<String, dynamic>? _pendingRequest;
   RealtimeChannel? _requestSubscription;
   RealtimeChannel? _profileSubscription;
+  RealtimeChannel? _assignedOrdersSubscription;
   final _audioPlayer = AudioPlayer();
+
+  List<Map<String, dynamic>> _assignedOrders = [];
+  List<Map<String, dynamic>> _openOrders = [];
+  bool _loadingAssignedOrders = false;
+  final Set<String> _dismissedOrders = {};
+  Timer? _countdownTimer;
+  // Persistent bid input controllers keyed by order ID
+  final Map<String, TextEditingController> _bidControllers = {};
+
+  TextEditingController _bidControllerFor(String orderId) {
+    return _bidControllers.putIfAbsent(orderId, () => TextEditingController());
+  }
 
   @override
   void initState() {
@@ -36,15 +48,24 @@ class _StaffViewState extends State<StaffView> {
     _fetchRequestStatus();
     _setupRequestRealtime();
     _setupProfileRealtime();
+    // NOTE: _fetchAssignedOrders and _setupAssignedOrdersRealtime are called
+    // inside _fetchStaffProfile() after _companyId is available.
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
   void dispose() {
     _companyCodeCtrl.dispose();
-    _teammateSubscription?.unsubscribe();
     _requestSubscription?.unsubscribe();
     _profileSubscription?.unsubscribe();
+    _assignedOrdersSubscription?.unsubscribe();
     _audioPlayer.dispose();
+    _countdownTimer?.cancel();
+    for (final ctrl in _bidControllers.values) {
+      ctrl.dispose();
+    }
     super.dispose();
   }
 
@@ -67,9 +88,10 @@ class _StaffViewState extends State<StaffView> {
         });
 
         if (_companyId != null) {
-          _fetchTeammates();
-          _setupTeammateRealtime();
           _fetchCompanyName();
+          // Fetch orders NOW that we have _companyId
+          _fetchAssignedOrders();
+          _setupAssignedOrdersRealtime();
         }
       }
     } catch (e) {
@@ -156,9 +178,25 @@ class _StaffViewState extends State<StaffView> {
           ),
           callback: (payload) {
             final newId = payload.newRecord['company_id'];
+
+            // 🔹 Case 1: Staff joined a company
             if (newId != null && _companyId == null) {
               _audioPlayer.play(AssetSource('sounds/notification.mp3'));
+              if (mounted) {
+                setState(() {
+                  _companyId = newId;
+                });
+                _fetchCompanyName();
+                _fetchAssignedOrders();
+              }
             }
+            // 🔹 Case 2: Staff was removed from a company
+            else if (newId == null && _companyId != null) {
+              if (mounted) {
+                _showRemovalDialog();
+              }
+            }
+
             _fetchStaffProfile();
           },
         )
@@ -202,11 +240,11 @@ class _StaffViewState extends State<StaffView> {
 
       final user = supabase.auth.currentUser;
       if (user != null) {
-        await supabase.from('company_join_requests').insert({
+        await supabase.from('company_join_requests').upsert({
           'staff_id': user.id,
           'company_id': codeText,
           'status': 'pending',
-        });
+        }, onConflict: 'staff_id, company_id');
 
         _showToast('Request sent to the owner!', Colors.orangeAccent);
         await _fetchRequestStatus();
@@ -243,55 +281,56 @@ class _StaffViewState extends State<StaffView> {
     ).showSnackBar(SnackBar(content: Text(msg), backgroundColor: color));
   }
 
-  Future<void> _fetchTeammates() async {
-    if (_companyId == null) return;
-    if (mounted) setState(() => _loadingTeammates = true);
+  void _showRemovalDialog() {
+    // Stop all company-related subscriptions
+    _assignedOrdersSubscription?.unsubscribe();
 
-    try {
-      final user = supabase.auth.currentUser;
-      final data = await supabase
-          .from('profiles')
-          .select('id, full_name, phone, is_online')
-          .eq('company_id', _companyId!)
-          .eq('role', 'staff')
-          .neq('id', user?.id ?? '');
-
-      if (mounted) {
-        setState(() {
-          _teammates = List<Map<String, dynamic>>.from(data);
-          _teammates.sort((a, b) {
-            bool aOnline = a['is_online'] == true;
-            bool bOnline = b['is_online'] == true;
-            if (aOnline && !bOnline) return -1;
-            if (!aOnline && bOnline) return 1;
-            return (a['full_name'] ?? '').compareTo(b['full_name'] ?? '');
-          });
-          _loadingTeammates = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) setState(() => _loadingTeammates = false);
-    }
-  }
-
-  void _setupTeammateRealtime() {
-    _teammateSubscription?.unsubscribe();
-    if (_companyId == null) return;
-
-    _teammateSubscription = supabase
-        .channel('public:profiles:teammates')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.all,
-          schema: 'public',
-          table: 'profiles',
-          filter: PostgresChangeFilter(
-            type: PostgresChangeFilterType.eq,
-            column: 'company_id',
-            value: _companyId!,
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF161626),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: Colors.white.withOpacity(0.1)),
+        ),
+        title: const Text(
+          'Notice',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: const Text(
+          'You have been removed from the company. Please contact your owner for more information.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              if (mounted) {
+                setState(() {
+                  _companyId = null;
+                  _companyName = null;
+                  _assignedOrders = [];
+                });
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orangeAccent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text(
+              'OK',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
-          callback: (payload) => _fetchTeammates(),
-        )
-        .subscribe();
+        ],
+      ),
+    );
   }
 
   @override
@@ -574,7 +613,7 @@ class _StaffViewState extends State<StaffView> {
               ),
             ),
             const SizedBox(height: 30),
-            
+
             // Inventory Action
             InkWell(
               onTap: () {
@@ -600,9 +639,7 @@ class _StaffViewState extends State<StaffView> {
                     ],
                   ),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: Colors.blueAccent.withOpacity(0.2),
-                  ),
+                  border: Border.all(color: Colors.blueAccent.withOpacity(0.2)),
                 ),
                 child: Row(
                   children: [
@@ -624,7 +661,7 @@ class _StaffViewState extends State<StaffView> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'View Inventory',
+                            'View Menu',
                             style: TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
@@ -632,7 +669,7 @@ class _StaffViewState extends State<StaffView> {
                             ),
                           ),
                           Text(
-                            'Check current food items and stock',
+                            'Check current food items and recipes',
                             style: TextStyle(
                               color: Colors.white54,
                               fontSize: 13,
@@ -652,9 +689,9 @@ class _StaffViewState extends State<StaffView> {
             ),
 
             const SizedBox(height: 30),
-            _buildUpcomingEvents(),
+            _buildAvailableToClaim(),
             const SizedBox(height: 30),
-            _buildTeammatesSection(),
+            _buildUpcomingEvents(),
             const SizedBox(height: 40),
           ],
         ),
@@ -662,44 +699,475 @@ class _StaffViewState extends State<StaffView> {
     );
   }
 
-  Widget _buildUpcomingEvents() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(40),
-      decoration: BoxDecoration(
-        color: Colors.orangeAccent.withOpacity(0.02),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: Colors.orangeAccent.withOpacity(0.1),
-          width: 1,
-        ),
-      ),
-      child: Center(
-        child: Column(
+  Widget _buildAvailableToClaim() {
+    final visibleOpenOrders = _openOrders
+        .where((o) => !_dismissedOrders.contains(o['id']))
+        .toList();
+
+    if (visibleOpenOrders.isEmpty && !_loadingAssignedOrders)
+      return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Icon(
-              Icons.assignment_outlined,
-              color: Colors.orangeAccent.withOpacity(0.2),
-              size: 48,
+            const Text(
+              'Available to Claim',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-            const SizedBox(height: 16),
-            Text(
-              'Your upcoming events and assigned orders will appear here soon.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white.withOpacity(0.3)),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.purpleAccent.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.purpleAccent.withOpacity(0.3)),
+              ),
+              child: Text(
+                '${visibleOpenOrders.length} OPEN',
+                style: const TextStyle(
+                  color: Colors.purpleAccent,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ],
         ),
+        const SizedBox(height: 16),
+        if (_loadingAssignedOrders)
+          const Center(
+            child: CircularProgressIndicator(color: Colors.orangeAccent),
+          )
+        else
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: visibleOpenOrders.length,
+            itemBuilder: (context, index) {
+              final order = visibleOpenOrders[index];
+              return _buildOpenOrderTile(order);
+            },
+          ),
+      ],
+    );
+  }
+
+  Widget _buildOpenOrderTile(Map<String, dynamic> order) {
+    final DateTime eventDate = DateTime.parse(order['event_date']).toLocal();
+    final String clientName = order['client_name'] ?? 'Unknown';
+    final String displayDate =
+        '${eventDate.day}/${eventDate.month}/${eventDate.year} at ${eventDate.hour}:${eventDate.minute.toString().padLeft(2, '0')}';
+    final double baseFare = (order['delivery_fare'] as num?)?.toDouble() ?? 0.0;
+    final DateTime? biddingEndsAt = order['delivery_bidding_ends_at'] != null
+        ? DateTime.parse(order['delivery_bidding_ends_at']).toLocal()
+        : null;
+
+    final bidController = _bidControllerFor(order['id']);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.purpleAccent.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.purpleAccent.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  clientName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+              const Icon(Icons.flash_on, color: Colors.purpleAccent, size: 18),
+              const SizedBox(width: 8),
+              InkWell(
+                onTap: () {
+                  setState(() {
+                    _dismissedOrders.add(order['id']);
+                  });
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.05),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.close,
+                    color: Colors.white54,
+                    size: 16,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Icon(Icons.calendar_today, color: Colors.white54, size: 14),
+              const SizedBox(width: 8),
+              Text(
+                displayDate,
+                style: const TextStyle(color: Colors.white70, fontSize: 13),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Base Fare:',
+                      style: TextStyle(color: Colors.white54, fontSize: 12),
+                    ),
+                    Text(
+                      '₹$baseFare',
+                      style: const TextStyle(
+                        color: Colors.greenAccent,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+                if (biddingEndsAt != null) ...[
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Ends In:',
+                        style: TextStyle(color: Colors.white54, fontSize: 12),
+                      ),
+                      Builder(
+                        builder: (context) {
+                          final now = DateTime.now();
+                          if (now.isAfter(biddingEndsAt)) {
+                            // Auto-remove expired auction from open list
+                            Future.microtask(() {
+                              if (mounted) {
+                                setState(() {
+                                  _dismissedOrders.add(order['id'].toString());
+                                });
+                              }
+                            });
+                            return const SizedBox.shrink();
+                          }
+                          final diff = biddingEndsAt.difference(now);
+                          return Text(
+                            diff.inSeconds < 60
+                                ? '${diff.inSeconds}s'
+                                : '${diff.inMinutes}m ${diff.inSeconds % 60}s',
+                            style: const TextStyle(
+                              color: Colors.orangeAccent,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Show current bid amount if one exists
+          FutureBuilder<Map<String, dynamic>?>(
+            future: () async {
+              final user = supabase.auth.currentUser;
+              if (user == null) return null;
+              final res = await supabase
+                  .from('delivery_bids')
+                  .select('bid_amount')
+                  .eq('order_id', order['id'])
+                  .eq('staff_id', user.id)
+                  .maybeSingle();
+              return res;
+            }(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData || snapshot.data == null) {
+                return Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: bidController,
+                        keyboardType: TextInputType.number,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: 'Your Bid (₹)',
+                          hintStyle: TextStyle(
+                            color: Colors.white.withOpacity(0.2),
+                            fontSize: 12,
+                          ),
+                          filled: true,
+                          fillColor: Colors.white.withOpacity(0.05),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: () =>
+                          _placeBid(order['id'], bidController.text, baseFare),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.purpleAccent,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                      ),
+                      child: const Text(
+                        'BID',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              }
+              final existingBid = (snapshot.data!['bid_amount'] as num)
+                  .toDouble();
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: Colors.greenAccent.withOpacity(0.3),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.check_circle_outline,
+                          color: Colors.greenAccent,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Your bid: ₹${existingBid.toStringAsFixed(0)}',
+                          style: const TextStyle(
+                            color: Colors.greenAccent,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: bidController,
+                          keyboardType: TextInputType.number,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: 'Update bid (₹)',
+                            hintStyle: TextStyle(
+                              color: Colors.white.withOpacity(0.2),
+                              fontSize: 12,
+                            ),
+                            filled: true,
+                            fillColor: Colors.white.withOpacity(0.05),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: () => _placeBid(
+                          order['id'],
+                          bidController.text,
+                          baseFare,
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.purpleAccent,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 12,
+                          ),
+                        ),
+                        child: const Text(
+                          'UPDATE',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: () => _revokeBid(order['id']),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.redAccent,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 12,
+                          ),
+                        ),
+                        child: const Text(
+                          'REVOKE',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildTeammatesSection() {
+  Future<void> _placeBid(
+    String orderId,
+    String bidText,
+    double baseFare,
+  ) async {
+    final user = supabase.auth.currentUser;
+    if (user == null) return;
+
+    final double? bidAmount = double.tryParse(bidText.trim());
+    if (bidAmount == null || bidText.trim().isEmpty) {
+      _showToast('Please enter a valid amount', Colors.redAccent);
+      return;
+    }
+
+    if (bidAmount < baseFare) {
+      _showToast('Bid must be at least ₹$baseFare', Colors.redAccent);
+      return;
+    }
+
+    try {
+      await supabase.from('delivery_bids').upsert({
+        'order_id': orderId,
+        'staff_id': user.id,
+        'bid_amount': bidAmount,
+      }, onConflict: 'order_id,staff_id');
+      _showToast('Bid placed! ₹${bidAmount.toStringAsFixed(0)}', Colors.green);
+      if (mounted) setState(() {}); // Refresh to show current bid
+    } catch (e) {
+      _showToast('Error placing bid: $e', Colors.redAccent);
+    }
+  }
+
+  Future<void> _revokeBid(String orderId) async {
+    final user = supabase.auth.currentUser;
+    if (user == null) return;
+    try {
+      await supabase
+          .from('delivery_bids')
+          .delete()
+          .eq('order_id', orderId)
+          .eq('staff_id', user.id);
+      _showToast('Bid revoked', Colors.orangeAccent);
+      if (mounted) setState(() {}); // Refresh to show bid input again
+    } catch (e) {
+      _showToast('Error revoking bid: $e', Colors.redAccent);
+    }
+  }
+
+  Future<void> _confirmDelivery(Map<String, dynamic> order) async {
+    final clientName = order['client_name'] ?? 'Customer';
+    final bytes = await showDialog<dynamic>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => SignaturePadDialog(clientName: clientName),
+    );
+    if (bytes == null || !mounted) return;
+    try {
+      final base64Sig = base64Encode(bytes as List<int>);
+      await supabase
+          .from('orders')
+          .update({
+            'delivery_signature': base64Sig,
+            'order_status': 'completed',
+          })
+          .eq('id', order['id']);
+      _showToast('Delivery confirmed! ✅', Colors.greenAccent);
+      _fetchAssignedOrders();
+    } catch (e) {
+      _showToast('Error confirming: $e', Colors.redAccent);
+    }
+  }
+
+  Widget _buildUpcomingEvents() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Your Teammates',
+          'Your Assigned Deliveries',
           style: TextStyle(
             color: Colors.white,
             fontSize: 20,
@@ -707,85 +1175,389 @@ class _StaffViewState extends State<StaffView> {
           ),
         ),
         const SizedBox(height: 16),
-        if (_loadingTeammates)
+        if (_loadingAssignedOrders)
           const Center(
             child: CircularProgressIndicator(color: Colors.orangeAccent),
           )
-        else if (_teammates.isEmpty)
-          Text(
-            'No other teammates found yet.',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.3),
-              fontSize: 13,
+        else if (_assignedOrders.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(40),
+            decoration: BoxDecoration(
+              color: Colors.orangeAccent.withOpacity(0.02),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: Colors.orangeAccent.withOpacity(0.1),
+                width: 1,
+              ),
+            ),
+            child: Center(
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.assignment_outlined,
+                    color: Colors.orangeAccent.withOpacity(0.2),
+                    size: 48,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No deliveries assigned to you right now.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white.withOpacity(0.3)),
+                  ),
+                ],
+              ),
             ),
           )
         else
           ListView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: _teammates.length,
-            itemBuilder: (context, index) =>
-                _buildTeammateTile(_teammates[index]),
+            itemCount: _assignedOrders.length,
+            itemBuilder: (context, index) {
+              final order = _assignedOrders[index];
+              return _buildAssignedOrderTile(order);
+            },
           ),
       ],
     );
   }
 
-  Widget _buildTeammateTile(Map<String, dynamic> staff) {
+  Widget _buildAssignedOrderTile(Map<String, dynamic> order) {
+    final DateTime eventDate = DateTime.parse(order['event_date']).toLocal();
+    final String clientName = order['client_name'] ?? 'Unknown';
+    // Format date nicely
+    final String displayDate =
+        '${eventDate.day}/${eventDate.month}/${eventDate.year} at ${eventDate.hour}:${eventDate.minute.toString().padLeft(2, '0')}';
+    final double? fare = (order['delivery_fare'] as num?)?.toDouble();
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.03),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white10),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircleAvatar(
-            radius: 18,
-            backgroundColor: Colors.orangeAccent.withOpacity(0.1),
-            child: Text(
-              (staff['full_name'] as String?)?[0].toUpperCase() ?? 'S',
-              style: const TextStyle(
-                color: Colors.orangeAccent,
-                fontWeight: FontWeight.bold,
-                fontSize: 12,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  clientName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+              if (fare != null)
+                Text(
+                  '₹$fare',
+                  style: const TextStyle(
+                    color: Colors.greenAccent,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.orangeAccent.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Text(
+                  'Upcoming',
+                  style: TextStyle(
+                    color: Colors.orangeAccent,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Icon(Icons.calendar_today, color: Colors.white54, size: 14),
+              const SizedBox(width: 8),
+              Text(
+                displayDate,
+                style: const TextStyle(color: Colors.white70, fontSize: 13),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Divider(color: Colors.white10),
+          const SizedBox(height: 8),
+          const Text(
+            'Order Items:',
+            style: TextStyle(color: Colors.white54, fontSize: 12),
+          ),
+          const SizedBox(height: 4),
+          ...(order['menu_items'] as List? ?? []).map((item) {
+            return Row(
+              children: [
+                const Text('• ', style: TextStyle(color: Colors.orangeAccent)),
+                Text(
+                  '${item['quantity']}x ${item['name']}',
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                ),
+              ],
+            );
+          }).toList(),
+          const SizedBox(height: 12),
+          // Confirm Delivery button or delivered badge
+          if (order['delivery_signature'] == null)
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => _confirmDelivery(order),
+                icon: const Icon(
+                  Icons.draw_outlined,
+                  color: Colors.black87,
+                  size: 18,
+                ),
+                label: const Text(
+                  'Order Delivered (Get Signature)',
+                  style: TextStyle(
+                    color: Colors.black87,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.greenAccent,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  elevation: 0,
+                ),
+              ),
+            )
+          else
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.greenAccent.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.greenAccent.withOpacity(0.3)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.verified, color: Colors.greenAccent, size: 16),
+                  SizedBox(width: 8),
+                  Text(
+                    '✅ Delivery confirmed & signed',
+                    style: TextStyle(
+                      color: Colors.greenAccent,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
               ),
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              staff['full_name'] ?? 'Unknown Member',
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w500,
-                fontSize: 14,
-              ),
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: (staff['is_online'] == true)
-                  ? Colors.green.withOpacity(0.1)
-                  : Colors.redAccent.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              (staff['is_online'] == true) ? 'Active' : 'Offline',
-              style: TextStyle(
-                color: (staff['is_online'] == true)
-                    ? Colors.greenAccent
-                    : Colors.redAccent.withOpacity(0.7),
-                fontSize: 9,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
         ],
       ),
     );
+  }
+
+  Future<void> _fetchAssignedOrders() async {
+    final user = supabase.auth.currentUser;
+    // Only the open-orders query needs _companyId; assigned orders just need user
+    if (user == null) return;
+
+    if (mounted) setState(() => _loadingAssignedOrders = true);
+
+    try {
+      // Always fetch orders assigned to this staff member
+      final resAssigned = await supabase
+          .from('orders')
+          .select()
+          .eq('delivery_staff_id', user.id)
+          .eq('order_status', 'upcoming')
+          .order('event_date');
+
+      // Only fetch open (claimable) orders if we know the company
+      List<dynamic> resOpen = [];
+      if (_companyId != null) {
+        resOpen = await supabase
+            .from('orders')
+            .select()
+            .eq('company_id', _companyId!)
+            .eq('is_delivery_open', true)
+            .eq('order_status', 'upcoming')
+            .isFilter('delivery_staff_id', null)
+            .order('event_date');
+      }
+
+      if (mounted) {
+        setState(() {
+          _assignedOrders = List<Map<String, dynamic>>.from(resAssigned);
+          _openOrders = List<Map<String, dynamic>>.from(resOpen);
+          _loadingAssignedOrders = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching assigned/open orders: $e');
+      if (mounted) setState(() => _loadingAssignedOrders = false);
+    }
+  }
+
+  void _setupAssignedOrdersRealtime() {
+    final user = supabase.auth.currentUser;
+    if (user == null) return;
+
+    _assignedOrdersSubscription?.unsubscribe();
+    _assignedOrdersSubscription = supabase
+        .channel('staff_orders_${user.id}')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'orders',
+          callback: (payload) {
+            final newRecord = payload.newRecord;
+            final oldRecord = payload.oldRecord;
+            final isNowOpen = newRecord['is_delivery_open'] == true;
+            final wasOpen = oldRecord['is_delivery_open'] == true;
+
+            // 🔔 New auction opened
+            if (isNowOpen && !wasOpen) {
+              _audioPlayer.play(AssetSource('sounds/notification.mp3'));
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Row(
+                      children: [
+                        Icon(
+                          Icons.local_shipping,
+                          color: Colors.white,
+                          size: 18,
+                        ),
+                        SizedBox(width: 8),
+                        Text('New delivery auction opened! Place your bid.'),
+                      ],
+                    ),
+                    backgroundColor: Colors.deepPurple,
+                    duration: Duration(seconds: 5),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
+            }
+
+            // 🏁 Auction just closed (is_delivery_open went true → false)
+            if (wasOpen && !isNowOpen && newRecord.isNotEmpty) {
+              final assignedStaffId = newRecord['delivery_staff_id'];
+              final clientName = newRecord['client_name'] ?? 'order';
+              final orderId = newRecord['id'];
+
+              // Remove from open list immediately
+              if (mounted) {
+                setState(() {
+                  _dismissedOrders.add(orderId.toString());
+                });
+              }
+
+              final wasAssignedToMe = assignedStaffId == user.id;
+
+              if (wasAssignedToMe) {
+                // 🎉 Win notification
+                _audioPlayer.play(AssetSource('sounds/notification.mp3'));
+                if (mounted) {
+                  final fare =
+                      (newRecord['delivery_fare'] as num?)?.toStringAsFixed(
+                        0,
+                      ) ??
+                      '?';
+                  final eventDate = newRecord['event_date'] != null
+                      ? DateTime.parse(newRecord['event_date']).toLocal()
+                      : null;
+                  final dateStr = eventDate != null
+                      ? '${eventDate.day}/${eventDate.month}/${eventDate.year}'
+                      : '';
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Row(
+                        children: [
+                          const Icon(
+                            Icons.emoji_events,
+                            color: Colors.amber,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text(
+                                  'You got the delivery! 🎉',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                Text(
+                                  '$clientName  •  ₹$fare  •  $dateStr',
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      backgroundColor: const Color(0xFF1B5E20),
+                      duration: const Duration(seconds: 7),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              } else {
+                // ❌ Not selected notification
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Row(
+                        children: [
+                          const Icon(
+                            Icons.cancel_outlined,
+                            color: Colors.white70,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Auction for "$clientName" ended — you were not selected.',
+                              style: const TextStyle(color: Colors.white70),
+                            ),
+                          ),
+                        ],
+                      ),
+                      backgroundColor: const Color(0xFF37474F),
+                      duration: const Duration(seconds: 5),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              }
+            }
+
+            _fetchAssignedOrders();
+          },
+        )
+        .subscribe();
   }
 }

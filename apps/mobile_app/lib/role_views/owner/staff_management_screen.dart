@@ -271,11 +271,11 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
     try {
       if (staffId.isEmpty) return;
 
-      // Call the secure RPC function to bypass complex RLS conflicts
-      await supabase.rpc(
-        'remove_staff_member',
-        params: {'staff_user_id': staffId},
-      );
+      // Update the profile to remove the company_id and reset the role if necessary
+      await supabase
+          .from('profiles')
+          .update({'company_id': null})
+          .eq('id', staffId);
 
       if (mounted) {
         setState(() {

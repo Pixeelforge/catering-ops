@@ -30,7 +30,7 @@ class _StaffViewState extends State<StaffView> {
   RealtimeChannel? _profileSubscription;
   RealtimeChannel? _assignedOrdersSubscription;
   final _audioPlayer = AudioPlayer();
-  
+
   List<Map<String, dynamic>> _assignedOrders = [];
   List<Map<String, dynamic>> _openOrders = [];
   bool _loadingAssignedOrders = false;
@@ -170,19 +170,27 @@ class _StaffViewState extends State<StaffView> {
           ),
           callback: (payload) {
             final newId = payload.newRecord['company_id'];
+
+            // 🔹 Case 1: Staff joined a company
             if (newId != null && _companyId == null) {
               _audioPlayer.play(AssetSource('sounds/notification.mp3'));
               if (mounted) {
                 setState(() {
                   _companyId = newId;
                 });
-                // Fetch necessary data now that the user is in a company
                 _fetchTeammates();
                 _setupTeammateRealtime();
                 _fetchCompanyName();
                 _fetchAssignedOrders();
               }
             }
+            // 🔹 Case 2: Staff was removed from a company
+            else if (newId == null && _companyId != null) {
+              if (mounted) {
+                _showRemovalDialog();
+              }
+            }
+
             _fetchStaffProfile();
           },
         )
@@ -226,14 +234,11 @@ class _StaffViewState extends State<StaffView> {
 
       final user = supabase.auth.currentUser;
       if (user != null) {
-        await supabase.from('company_join_requests').upsert(
-          {
-            'staff_id': user.id,
-            'company_id': codeText,
-            'status': 'pending',
-          },
-          onConflict: 'staff_id, company_id',
-        );
+        await supabase.from('company_join_requests').upsert({
+          'staff_id': user.id,
+          'company_id': codeText,
+          'status': 'pending',
+        }, onConflict: 'staff_id, company_id');
 
         _showToast('Request sent to the owner!', Colors.orangeAccent);
         await _fetchRequestStatus();
@@ -268,6 +273,60 @@ class _StaffViewState extends State<StaffView> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(msg), backgroundColor: color));
+  }
+
+  void _showRemovalDialog() {
+    // Stop all company-related subscriptions
+    _teammateSubscription?.unsubscribe();
+    _assignedOrdersSubscription?.unsubscribe();
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF161626),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: Colors.white.withOpacity(0.1)),
+        ),
+        title: const Text(
+          'Notice',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: const Text(
+          'You have been removed from the company. Please contact your owner for more information.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              if (mounted) {
+                setState(() {
+                  _companyId = null;
+                  _companyName = null;
+                  _teammates = [];
+                  _assignedOrders = [];
+                });
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orangeAccent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text(
+              'OK',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _fetchTeammates() async {
@@ -601,7 +660,7 @@ class _StaffViewState extends State<StaffView> {
               ),
             ),
             const SizedBox(height: 30),
-            
+
             // Inventory Action
             InkWell(
               onTap: () {
@@ -627,9 +686,7 @@ class _StaffViewState extends State<StaffView> {
                     ],
                   ),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: Colors.blueAccent.withOpacity(0.2),
-                  ),
+                  border: Border.all(color: Colors.blueAccent.withOpacity(0.2)),
                 ),
                 child: Row(
                   children: [
@@ -692,10 +749,13 @@ class _StaffViewState extends State<StaffView> {
   }
 
   Widget _buildAvailableToClaim() {
-    final visibleOpenOrders = _openOrders.where((o) => !_dismissedOrders.contains(o['id'])).toList();
+    final visibleOpenOrders = _openOrders
+        .where((o) => !_dismissedOrders.contains(o['id']))
+        .toList();
 
-    if (visibleOpenOrders.isEmpty && !_loadingAssignedOrders) return const SizedBox.shrink();
-    
+    if (visibleOpenOrders.isEmpty && !_loadingAssignedOrders)
+      return const SizedBox.shrink();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -750,12 +810,13 @@ class _StaffViewState extends State<StaffView> {
   Widget _buildOpenOrderTile(Map<String, dynamic> order) {
     final DateTime eventDate = DateTime.parse(order['event_date']).toLocal();
     final String clientName = order['client_name'] ?? 'Unknown';
-    final String displayDate = '${eventDate.day}/${eventDate.month}/${eventDate.year} at ${eventDate.hour}:${eventDate.minute.toString().padLeft(2, '0')}';
+    final String displayDate =
+        '${eventDate.day}/${eventDate.month}/${eventDate.year} at ${eventDate.hour}:${eventDate.minute.toString().padLeft(2, '0')}';
     final double baseFare = (order['delivery_fare'] as num?)?.toDouble() ?? 0.0;
-    final DateTime? biddingEndsAt = order['delivery_bidding_ends_at'] != null 
-        ? DateTime.parse(order['delivery_bidding_ends_at']).toLocal() 
+    final DateTime? biddingEndsAt = order['delivery_bidding_ends_at'] != null
+        ? DateTime.parse(order['delivery_bidding_ends_at']).toLocal()
         : null;
-    
+
     final bidController = TextEditingController();
 
     return Container(
@@ -828,8 +889,17 @@ class _StaffViewState extends State<StaffView> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Base Fare:', style: TextStyle(color: Colors.white54, fontSize: 12)),
-                    Text('₹$baseFare', style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
+                    const Text(
+                      'Base Fare:',
+                      style: TextStyle(color: Colors.white54, fontSize: 12),
+                    ),
+                    Text(
+                      '₹$baseFare',
+                      style: const TextStyle(
+                        color: Colors.greenAccent,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ],
                 ),
                 if (biddingEndsAt != null) ...[
@@ -837,17 +907,38 @@ class _StaffViewState extends State<StaffView> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Ends In:', style: TextStyle(color: Colors.white54, fontSize: 12)),
-                      Builder(builder: (context) {
-                        final now = DateTime.now();
-                        if (now.isAfter(biddingEndsAt)) {
-                          // Resolve auction
-                          supabase.rpc('resolve_delivery_auction', params: {'p_order_id': order['id']});
-                          return const Text('Expired', style: TextStyle(color: Colors.redAccent, fontSize: 12));
-                        }
-                        final diff = biddingEndsAt.difference(now);
-                        return Text('${diff.inMinutes}m ${diff.inSeconds % 60}s', style: const TextStyle(color: Colors.orangeAccent, fontSize: 12, fontWeight: FontWeight.bold));
-                      }),
+                      const Text(
+                        'Ends In:',
+                        style: TextStyle(color: Colors.white54, fontSize: 12),
+                      ),
+                      Builder(
+                        builder: (context) {
+                          final now = DateTime.now();
+                          if (now.isAfter(biddingEndsAt)) {
+                            // Resolve auction
+                            supabase.rpc(
+                              'resolve_delivery_auction',
+                              params: {'p_order_id': order['id']},
+                            );
+                            return const Text(
+                              'Expired',
+                              style: TextStyle(
+                                color: Colors.redAccent,
+                                fontSize: 12,
+                              ),
+                            );
+                          }
+                          final diff = biddingEndsAt.difference(now);
+                          return Text(
+                            '${diff.inMinutes}m ${diff.inSeconds % 60}s',
+                            style: const TextStyle(
+                              color: Colors.orangeAccent,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          );
+                        },
+                      ),
                     ],
                   ),
                 ],
@@ -864,23 +955,44 @@ class _StaffViewState extends State<StaffView> {
                   style: const TextStyle(color: Colors.white, fontSize: 14),
                   decoration: InputDecoration(
                     hintText: 'Your Bid (₹)',
-                    hintStyle: TextStyle(color: Colors.white.withOpacity(0.2), fontSize: 12),
+                    hintStyle: TextStyle(
+                      color: Colors.white.withOpacity(0.2),
+                      fontSize: 12,
+                    ),
                     filled: true,
                     fillColor: Colors.white.withOpacity(0.05),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
                   ),
                 ),
               ),
               const SizedBox(width: 8),
               ElevatedButton(
-                onPressed: () => _placeBid(order['id'], bidController.text, baseFare),
+                onPressed: () =>
+                    _placeBid(order['id'], bidController.text, baseFare),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.purpleAccent,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                 ),
-                child: const Text('BID', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                child: const Text(
+                  'BID',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
             ],
           ),
@@ -889,10 +1001,14 @@ class _StaffViewState extends State<StaffView> {
     );
   }
 
-  Future<void> _placeBid(String orderId, String bidText, double baseFare) async {
+  Future<void> _placeBid(
+    String orderId,
+    String bidText,
+    double baseFare,
+  ) async {
     final user = supabase.auth.currentUser;
     if (user == null) return;
-    
+
     final double? bidAmount = double.tryParse(bidText);
     if (bidAmount == null) {
       _showToast('Please enter a valid amount', Colors.redAccent);
@@ -982,7 +1098,8 @@ class _StaffViewState extends State<StaffView> {
     final DateTime eventDate = DateTime.parse(order['event_date']).toLocal();
     final String clientName = order['client_name'] ?? 'Unknown';
     // Format date nicely
-    final String displayDate = '${eventDate.day}/${eventDate.month}/${eventDate.year} at ${eventDate.hour}:${eventDate.minute.toString().padLeft(2, '0')}';
+    final String displayDate =
+        '${eventDate.day}/${eventDate.month}/${eventDate.year} at ${eventDate.hour}:${eventDate.minute.toString().padLeft(2, '0')}';
     final double? fare = (order['delivery_fare'] as num?)?.toDouble();
 
     return Container(
@@ -1019,7 +1136,10 @@ class _StaffViewState extends State<StaffView> {
                   ),
                 ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.orangeAccent.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
@@ -1073,7 +1193,7 @@ class _StaffViewState extends State<StaffView> {
   Future<void> _fetchAssignedOrders() async {
     final user = supabase.auth.currentUser;
     if (user == null || _companyId == null) return;
-    
+
     if (mounted) setState(() => _loadingAssignedOrders = true);
 
     try {
@@ -1083,7 +1203,7 @@ class _StaffViewState extends State<StaffView> {
           .eq('delivery_staff_id', user.id)
           .eq('order_status', 'upcoming')
           .order('event_date');
-          
+
       final resOpen = await supabase
           .from('orders')
           .select()
@@ -1109,7 +1229,7 @@ class _StaffViewState extends State<StaffView> {
   void _setupAssignedOrdersRealtime() {
     final user = supabase.auth.currentUser;
     if (user == null) return;
-    
+
     _assignedOrdersSubscription?.unsubscribe();
     _assignedOrdersSubscription = supabase
         .channel('public:orders:assigned')

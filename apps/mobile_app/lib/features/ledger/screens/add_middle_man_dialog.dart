@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_contacts/flutter_contacts.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter/foundation.dart';
 
 class AddMiddleManDialog extends StatefulWidget {
   final String companyId;
@@ -94,6 +97,70 @@ class _AddMiddleManDialogState extends State<AddMiddleManDialog> {
                 fontWeight: FontWeight.bold,
               ),
             ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: () async {
+                if (kIsWeb) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Contact import is only available on mobile devices.',
+                      ),
+                      backgroundColor: Colors.orange,
+                    ),
+                  );
+                  return;
+                }
+                try {
+                  if (await Permission.contacts.request().isGranted) {
+                    final Contact? contact =
+                        await FlutterContacts.openExternalPick();
+                    if (contact != null) {
+                      final fullContact = await FlutterContacts.getContact(
+                        contact.id,
+                      );
+                      if (fullContact != null) {
+                        setState(() {
+                          _nameController.text = fullContact.displayName;
+                          if (fullContact.phones.isNotEmpty) {
+                            String phone = fullContact.phones.first.number;
+                            _phoneController.text = phone.replaceAll(
+                              RegExp(r'\s+'),
+                              '',
+                            );
+                          }
+                        });
+                      }
+                    }
+                  } else {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Contact permission denied. Please enable it in settings.',
+                          ),
+                          backgroundColor: Colors.redAccent,
+                        ),
+                      );
+                    }
+                  }
+                } catch (e) {
+                  debugPrint('Error picking contact: $e');
+                }
+              },
+              icon: const Icon(Icons.contact_phone, size: 18),
+              label: const Text('Import from Contacts'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orangeAccent.withOpacity(0.1),
+                foregroundColor: Colors.orangeAccent,
+                elevation: 0,
+                minimumSize: const Size(double.infinity, 45),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
             const SizedBox(height: 24),
             TextField(
               controller: _nameController,

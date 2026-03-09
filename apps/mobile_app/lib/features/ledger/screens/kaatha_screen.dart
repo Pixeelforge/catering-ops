@@ -68,7 +68,7 @@ class _KaathaScreenState extends State<KaathaScreen> {
           .from('middle_men')
           .select()
           .eq('company_id', widget.companyId)
-          .order('name');
+          .order('total_balance', ascending: false); // Highest balance on top
 
       if (mounted) {
         setState(() {
@@ -404,7 +404,10 @@ class _KaathaScreenState extends State<KaathaScreen> {
           appBar: AppBar(
             backgroundColor: Colors.transparent,
             elevation: 0,
-            automaticallyImplyLeading: false,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
+              onPressed: () => Navigator.pop(context),
+            ),
             title: const Text(
               'Kaatha (Ledger)',
               style: TextStyle(
@@ -539,6 +542,8 @@ class _KaathaScreenState extends State<KaathaScreen> {
       itemBuilder: (context, index) {
         final man = _middleMen[index];
         final isExpanded = _expandedIndex == index;
+        final balance = (man['total_balance'] as num?)?.toDouble() ?? 0.0;
+        final isSettled = balance == 0;
 
         return Dismissible(
           key: Key(man['id'].toString()),
@@ -601,13 +606,27 @@ class _KaathaScreenState extends State<KaathaScreen> {
               margin: const EdgeInsets.only(bottom: 24),
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.05),
+                color: isSettled
+                    ? Colors.greenAccent.withOpacity(0.07)
+                    : Colors.white.withOpacity(0.05),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: isExpanded
+                  color: isSettled
+                      ? Colors.greenAccent.withOpacity(0.6)
+                      : isExpanded
                       ? Colors.orangeAccent.withOpacity(0.5)
                       : Colors.white10,
+                  width: isSettled ? 1.5 : 1.0,
                 ),
+                boxShadow: isSettled
+                    ? [
+                        BoxShadow(
+                          color: Colors.greenAccent.withOpacity(0.15),
+                          blurRadius: 18,
+                          spreadRadius: 1,
+                        ),
+                      ]
+                    : null,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -669,20 +688,27 @@ class _KaathaScreenState extends State<KaathaScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          'AMOUNT TO COLLECT:',
-                          style: TextStyle(
-                            color: Colors.greenAccent,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
+                        const Flexible(
+                          child: Text(
+                            'AMOUNT TO COLLECT:',
+                            style: TextStyle(
+                              color: Colors.greenAccent,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        Text(
-                          '₹${(man['total_balance'] as num?)?.toStringAsFixed(2) ?? '0.00'}',
-                          style: const TextStyle(
-                            color: Colors.greenAccent,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 24,
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            '₹${(man['total_balance'] as num?)?.toStringAsFixed(2) ?? '0.00'}',
+                            style: const TextStyle(
+                              color: Colors.greenAccent,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 24,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
@@ -717,7 +743,6 @@ class _KaathaScreenState extends State<KaathaScreen> {
                           ),
                         ),
                         const SizedBox(height: 12),
-                        // SECONDARY ACTIONS
                         OutlinedButton.icon(
                           onPressed: () {
                             if (man['phone_number'] != null) {
@@ -736,7 +761,6 @@ class _KaathaScreenState extends State<KaathaScreen> {
                           ),
                         ),
                         const SizedBox(height: 12),
-                        // MINOR ACTIONS
                         Row(
                           children: [
                             Expanded(
@@ -764,6 +788,153 @@ class _KaathaScreenState extends State<KaathaScreen> {
                               ),
                             ),
                           ],
+                        ),
+                        const Divider(color: Colors.white10, height: 28),
+                        // Orders belonging to this middleman
+                        FutureBuilder<List<Map<String, dynamic>>>(
+                          future: () async {
+                            final tag =
+                                '${man['name']} (${man['phone_number']})';
+                            final res = await _supabase
+                                .from('orders')
+                                .select(
+                                  'id, client_name, total_value, payment_status, event_date',
+                                )
+                                .eq('company_id', widget.companyId)
+                                .eq('middleman_tag', tag)
+                                .order(
+                                  'payment_status',
+                                  ascending: true,
+                                ); // pending first
+                            return List<Map<String, dynamic>>.from(res);
+                          }(),
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState ==
+                                ConnectionState.waiting) {
+                              return const Center(
+                                child: CircularProgressIndicator(
+                                  color: Colors.orangeAccent,
+                                  strokeWidth: 2,
+                                ),
+                              );
+                            }
+                            final orders = snapshot.data ?? [];
+                            // Sort: unpaid/pending on top, paid below
+                            final unpaid = orders
+                                .where((o) => o['payment_status'] != 'paid')
+                                .toList();
+                            final paid = orders
+                                .where((o) => o['payment_status'] == 'paid')
+                                .toList();
+                            final sortedOrders = [...unpaid, ...paid];
+                            if (sortedOrders.isEmpty) {
+                              return Text(
+                                'No orders found for this middleman',
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.3),
+                                  fontSize: 13,
+                                ),
+                                textAlign: TextAlign.center,
+                              );
+                            }
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Orders',
+                                  style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                ...sortedOrders.map((order) {
+                                  final isPending =
+                                      order['payment_status'] != 'paid';
+                                  final total =
+                                      (order['total_value'] as num?)
+                                          ?.toDouble() ??
+                                      0.0;
+                                  final date = DateTime.tryParse(
+                                    order['event_date'] ?? '',
+                                  )?.toLocal();
+                                  final dateStr = date != null
+                                      ? '${date.day}/${date.month}/${date.year}'
+                                      : '';
+                                  return Container(
+                                    margin: const EdgeInsets.only(bottom: 8),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 10,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: isPending
+                                          ? Colors.red.withOpacity(0.08)
+                                          : Colors.green.withOpacity(0.06),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: isPending
+                                            ? Colors.redAccent.withOpacity(0.3)
+                                            : Colors.greenAccent.withOpacity(
+                                                0.2,
+                                              ),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          isPending
+                                              ? Icons.pending_outlined
+                                              : Icons.check_circle_outline,
+                                          color: isPending
+                                              ? Colors.redAccent
+                                              : Colors.greenAccent,
+                                          size: 16,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                order['client_name'] ??
+                                                    'Unknown',
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                              if (dateStr.isNotEmpty)
+                                                Text(
+                                                  dateStr,
+                                                  style: const TextStyle(
+                                                    color: Colors.white38,
+                                                    fontSize: 11,
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                        ),
+                                        Text(
+                                          '₹${total.toStringAsFixed(0)}',
+                                          style: TextStyle(
+                                            color: isPending
+                                                ? Colors.redAccent
+                                                : Colors.greenAccent,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }),
+                              ],
+                            );
+                          },
                         ),
                       ],
                     ),

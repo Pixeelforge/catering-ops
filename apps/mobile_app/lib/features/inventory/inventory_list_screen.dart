@@ -108,11 +108,15 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: const Text(
-          'Inventory',
+          'Menu',
           style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, size: 20, color: Colors.white),
+          icon: const Icon(
+            Icons.arrow_back_ios_new,
+            size: 20,
+            color: Colors.white,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -122,9 +126,8 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => AddInventoryItemScreen(
-                      companyId: widget.companyId,
-                    ),
+                    builder: (context) =>
+                        AddInventoryItemScreen(companyId: widget.companyId),
                   ),
                 );
               },
@@ -132,7 +135,10 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
               icon: const Icon(Icons.add, color: Colors.white),
               label: const Text(
                 'Add Item',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             )
           : null,
@@ -141,21 +147,21 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
               child: CircularProgressIndicator(color: Colors.orangeAccent),
             )
           : _items.isEmpty
-              ? _buildEmptyState()
-              : GridView.builder(
-                  padding: const EdgeInsets.all(24),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    childAspectRatio: 0.65,
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
-                  ),
-                  itemCount: _items.length,
-                  itemBuilder: (context, index) {
-                    final item = _items[index];
-                    return _buildInventoryCard(item);
-                  },
-                ),
+          ? _buildEmptyState()
+          : GridView.builder(
+              padding: const EdgeInsets.all(24),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                childAspectRatio: 0.65,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+              ),
+              itemCount: _items.length,
+              itemBuilder: (context, index) {
+                final item = _items[index];
+                return _buildInventoryCard(item);
+              },
+            ),
     );
   }
 
@@ -171,7 +177,7 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            'Inventory is empty',
+            'Menu is empty',
             style: TextStyle(
               color: Colors.white.withOpacity(0.5),
               fontSize: 18,
@@ -180,7 +186,7 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
           const SizedBox(height: 8),
           if (widget.isOwner)
             Text(
-              'Tap "Add Item" to start tracking food stock.',
+              'Tap "Add Item" to start adding menu items.',
               style: TextStyle(
                 color: Colors.white.withOpacity(0.3),
                 fontSize: 14,
@@ -214,7 +220,7 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
     final String? imageUrl = item['image_url'];
     final String category = item['category'] ?? 'Other';
     final IconData categoryIcon = _getIconForCategory(category);
-    
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.05),
@@ -248,18 +254,17 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                             size: 40,
                           ),
                         )
-                      : Icon(
-                          categoryIcon,
-                          color: Colors.white24,
-                          size: 40,
-                        ),
+                      : Icon(categoryIcon, color: Colors.white24, size: 40),
                 ),
               ),
               // Details Section
               Expanded(
                 flex: 4,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -291,7 +296,8 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
-                                item['category']?.toUpperCase() ?? 'UNCATEGORIZED',
+                                item['category']?.toUpperCase() ??
+                                    'UNCATEGORIZED',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
@@ -319,7 +325,7 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
               ),
             ],
           ),
-          
+
           // Delete button for owners
           if (widget.isOwner)
             Positioned(
@@ -331,7 +337,10 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                     context: context,
                     builder: (ctx) => AlertDialog(
                       backgroundColor: const Color(0xFF1A1A2E),
-                      title: const Text('Delete Item?', style: TextStyle(color: Colors.white)),
+                      title: const Text(
+                        'Delete Item?',
+                        style: TextStyle(color: Colors.white),
+                      ),
                       content: Text(
                         'Are you sure you want to remove ${item['name']} from inventory?',
                         style: const TextStyle(color: Colors.white70),
@@ -339,14 +348,20 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
                       actions: [
                         TextButton(
                           onPressed: () => Navigator.pop(ctx),
-                          child: const Text('CANCEL', style: TextStyle(color: Colors.white54)),
+                          child: const Text(
+                            'CANCEL',
+                            style: TextStyle(color: Colors.white54),
+                          ),
                         ),
                         TextButton(
                           onPressed: () {
                             Navigator.pop(ctx);
                             _deleteItem(item['id']);
                           },
-                          child: const Text('DELETE', style: TextStyle(color: Colors.redAccent)),
+                          child: const Text(
+                            'DELETE',
+                            style: TextStyle(color: Colors.redAccent),
+                          ),
                         ),
                       ],
                     ),

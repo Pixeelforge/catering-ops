@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter_contacts/flutter_contacts.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class CreateOrderScreen extends StatefulWidget {
   final String companyId;
@@ -17,8 +20,6 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
 
   // Form Fields
   final _clientNameController = TextEditingController();
-  final _middlemanController = TextEditingController();
-  final _middlemanPhoneController = TextEditingController();
   final _totalController = TextEditingController();
 
   DateTime? _selectedDate;
@@ -26,6 +27,10 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
 
   String _paymentStatus = 'pending';
   String _orderType = 'direct'; // 'direct' or 'middleman'
+
+  // Middleman dropdown
+  List<Map<String, dynamic>> _middleMen = [];
+  Map<String, dynamic>? _selectedMiddleMan;
 
   // Menu Item Selection
   List<Map<String, dynamic>> _availableMenuItems = [];
@@ -40,6 +45,24 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
     super.initState();
     _fetchMenuItems();
     _fetchUnits();
+    _fetchMiddleMen();
+  }
+
+  Future<void> _fetchMiddleMen() async {
+    try {
+      final data = await _supabase
+          .from('middle_men')
+          .select('id, name, phone_number, total_balance')
+          .eq('company_id', widget.companyId)
+          .order('name');
+      if (mounted) {
+        setState(() {
+          _middleMen = List<Map<String, dynamic>>.from(data);
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching middle men: $e');
+    }
   }
 
   Future<void> _fetchUnits() async {
@@ -63,8 +86,6 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
   @override
   void dispose() {
     _clientNameController.dispose();
-    _middlemanController.dispose();
-    _middlemanPhoneController.dispose();
     _totalController.dispose();
     super.dispose();
   }
@@ -278,6 +299,235 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
     );
   }
 
+  Future<void> _showAddMiddleManDialog() async {
+    final nameCtrl = TextEditingController();
+    final phoneCtrl = TextEditingController();
+    bool isSaving = false;
+
+    await showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: const Color(0xFF1E1E2C),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text(
+            'Add New Middleman',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ElevatedButton.icon(
+                onPressed: () async {
+                  if (kIsWeb) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Contact import is only available on mobile devices.',
+                        ),
+                        backgroundColor: Colors.orange,
+                      ),
+                    );
+                    return;
+                  }
+                  try {
+                    bool permissionGranted =
+                        await Permission.contacts.isGranted;
+                    if (!permissionGranted) {
+                      permissionGranted = await Permission.contacts
+                          .request()
+                          .isGranted;
+                    }
+
+                    if (permissionGranted) {
+                      final Contact? contact =
+                          await FlutterContacts.openExternalPick();
+                      if (contact != null) {
+                        final fullContact = await FlutterContacts.getContact(
+                          contact.id,
+                        );
+                        if (fullContact != null) {
+                          setDialogState(() {
+                            nameCtrl.text = fullContact.displayName;
+                            if (fullContact.phones.isNotEmpty) {
+                              // Sanitize phone number (remove spaces, etc.)
+                              String phone = fullContact.phones.first.number;
+                              phoneCtrl.text = phone.replaceAll(
+                                RegExp(r'\s+'),
+                                '',
+                              );
+                            }
+                          });
+                        }
+                      }
+                    } else {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Contact permission denied. Please enable it in settings.',
+                            ),
+                            backgroundColor: Colors.redAccent,
+                          ),
+                        );
+                      }
+                    }
+                  } catch (e) {
+                    debugPrint('Error picking contact: $e');
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Could not import contact: $e')),
+                      );
+                    }
+                  }
+                },
+                icon: const Icon(Icons.contact_phone, size: 18),
+                label: const Text('Import from Contacts'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orangeAccent.withOpacity(0.1),
+                  foregroundColor: Colors.orangeAccent,
+                  elevation: 0,
+                  minimumSize: const Size(double.infinity, 45),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: nameCtrl,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  labelText: 'Middleman Name',
+                  labelStyle: const TextStyle(color: Colors.white54),
+                  prefixIcon: const Icon(
+                    Icons.person,
+                    color: Colors.orangeAccent,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Colors.white12),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Colors.orangeAccent),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: phoneCtrl,
+                style: const TextStyle(color: Colors.white),
+                keyboardType: TextInputType.phone,
+                decoration: InputDecoration(
+                  labelText: 'Phone Number',
+                  labelStyle: const TextStyle(color: Colors.white54),
+                  prefixIcon: const Icon(
+                    Icons.phone,
+                    color: Colors.orangeAccent,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Colors.white12),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Colors.orangeAccent),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: Colors.white54),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: isSaving
+                  ? null
+                  : () async {
+                      if (nameCtrl.text.isEmpty || phoneCtrl.text.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Please fill all fields'),
+                          ),
+                        );
+                        return;
+                      }
+                      setDialogState(() => isSaving = true);
+                      try {
+                        final res = await _supabase
+                            .from('middle_men')
+                            .insert({
+                              'company_id': widget.companyId,
+                              'name': nameCtrl.text.trim(),
+                              'phone_number': phoneCtrl.text.trim(),
+                              'total_balance': 0,
+                            })
+                            .select()
+                            .single();
+
+                        if (mounted) {
+                          setState(() {
+                            // Local update for instant feedback
+                            final man = Map<String, dynamic>.from(res);
+                            _middleMen.add(man);
+                            _middleMen.sort(
+                              (a, b) => (a['name'] as String).compareTo(
+                                b['name'] as String,
+                              ),
+                            );
+                            _selectedMiddleMan = man;
+                          });
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Middleman added successfully'),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        debugPrint('Error adding middleman: $e');
+                        if (mounted) {
+                          ScaffoldMessenger.of(
+                            context,
+                          ).showSnackBar(SnackBar(content: Text('Error: $e')));
+                        }
+                      } finally {
+                        if (mounted) setDialogState(() => isSaving = false);
+                      }
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orangeAccent,
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: isSaving
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.black,
+                      ),
+                    )
+                  : const Text('Save & Select'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _showItemSelectorBottomSheet() {
     showModalBottomSheet(
       context: context,
@@ -299,7 +549,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text(
-                          'Select Inventory Items',
+                          'Select Menu Items',
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
@@ -422,6 +672,10 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
       _toast('Please select at least one Menu Item');
       return;
     }
+    if (_orderType == 'middleman' && _selectedMiddleMan == null) {
+      _toast('Please select a middleman');
+      return;
+    }
 
     setState(() => _isLoading = true);
 
@@ -436,7 +690,6 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
 
       final totalValue = double.tryParse(_totalController.text) ?? 0.0;
 
-      // Map _selectedItems to just name, quantity, and type for JSONB
       final menuItemsJson = _selectedItems
           .map(
             (item) => {
@@ -447,20 +700,38 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
           )
           .toList();
 
+      String? middlemanTag;
+      if (_orderType == 'middleman' && _selectedMiddleMan != null) {
+        final name = _selectedMiddleMan?['name'] ?? 'Unknown';
+        final phone = _selectedMiddleMan?['phone_number'] ?? '';
+        middlemanTag = '$name ($phone)';
+      }
+
       await _supabase.from('orders').insert({
         'company_id': widget.companyId,
         'client_name': _clientNameController.text.trim(),
         'event_date': eventDateTime,
         'menu_items': menuItemsJson,
-        'middleman_tag':
-            _orderType == 'middleman' &&
-                _middlemanController.text.trim().isNotEmpty
-            ? '${_middlemanController.text.trim()} (${_middlemanPhoneController.text.trim()})'
-            : null,
+        'middleman_tag': middlemanTag,
         'total_value': totalValue,
         'payment_status': _paymentStatus,
         'order_status': 'upcoming',
       });
+
+      // Auto-save to Khata if middleman order is pending payment
+      if (_orderType == 'middleman' &&
+          _selectedMiddleMan != null &&
+          _paymentStatus == 'pending') {
+        final manId = _selectedMiddleMan?['id'];
+        final currentBalance =
+            (_selectedMiddleMan?['total_balance'] as num?)?.toDouble() ?? 0.0;
+        if (manId != null) {
+          await _supabase
+              .from('middle_men')
+              .update({'total_balance': currentBalance + totalValue})
+              .eq('id', manId);
+        }
+      }
 
       _toast('Order created successfully!');
       if (mounted) Navigator.pop(context);
@@ -884,14 +1155,17 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                                         size: 18,
                                       ),
                                       const SizedBox(width: 8),
-                                      Text(
-                                        'Direct Customer',
-                                        style: TextStyle(
-                                          color: _orderType == 'direct'
-                                              ? Colors.orangeAccent
-                                              : Colors.white38,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 14,
+                                      Flexible(
+                                        child: Text(
+                                          'Direct Customer',
+                                          style: TextStyle(
+                                            color: _orderType == 'direct'
+                                                ? Colors.orangeAccent
+                                                : Colors.white38,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
                                         ),
                                       ),
                                     ],
@@ -936,14 +1210,17 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                                         size: 18,
                                       ),
                                       const SizedBox(width: 8),
-                                      Text(
-                                        'Middleman',
-                                        style: TextStyle(
-                                          color: _orderType == 'middleman'
-                                              ? const Color(0xFFD4A237)
-                                              : Colors.white38,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 14,
+                                      Flexible(
+                                        child: Text(
+                                          'Middleman',
+                                          style: TextStyle(
+                                            color: _orderType == 'middleman'
+                                                ? const Color(0xFFD4A237)
+                                                : Colors.white38,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
                                         ),
                                       ),
                                     ],
@@ -960,70 +1237,208 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
 
                   // Middleman fields — only shown when Middleman is selected
                   if (_orderType == 'middleman') ...[
-                    TextFormField(
-                      controller: _middlemanController,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        labelText: 'Middleman Name',
-                        labelStyle: const TextStyle(color: Colors.white54),
-                        prefixIcon: const Icon(
-                          Icons.person_outline,
-                          color: Color(0xFFD4A237),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(
-                            color: Color(0xFFD4A237),
-                            width: 1.2,
+                    _middleMen.isEmpty
+                        ? Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: Colors.orange.withOpacity(0.3),
+                              ),
+                            ),
+                            child: Column(
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.warning_amber_rounded,
+                                      color: Colors.orange,
+                                      size: 18,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    const Expanded(
+                                      child: Text(
+                                        'No middlemen added yet.',
+                                        style: TextStyle(
+                                          color: Colors.orange,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton.icon(
+                                    onPressed: _showAddMiddleManDialog,
+                                    icon: const Icon(Icons.add, size: 16),
+                                    label: const Text(
+                                      'Add Your First Middleman',
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.orange,
+                                      foregroundColor: Colors.black,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        : Row(
+                            children: [
+                              Expanded(
+                                child:
+                                    DropdownButtonFormField<
+                                      Map<String, dynamic>
+                                    >(
+                                      dropdownColor: const Color(0xFF1A1A2E),
+                                      value: _selectedMiddleMan,
+                                      hint: const Text(
+                                        'Select Middleman',
+                                        style: TextStyle(color: Colors.white38),
+                                      ),
+                                      items: _middleMen.map((man) {
+                                        return DropdownMenuItem(
+                                          value: man,
+                                          child: Text(
+                                            '${man['name']} (${man['phone_number']})',
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        );
+                                      }).toList(),
+                                      onChanged: (val) => setState(
+                                        () => _selectedMiddleMan = val,
+                                      ),
+                                      decoration: InputDecoration(
+                                        prefixIcon: const Icon(
+                                          Icons.person_outline,
+                                          color: Color(0xFFD4A237),
+                                        ),
+                                        enabledBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
+                                          borderSide: const BorderSide(
+                                            color: Color(0xFFD4A237),
+                                            width: 1.2,
+                                          ),
+                                        ),
+                                        focusedBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
+                                          borderSide: const BorderSide(
+                                            color: Color(0xFFD4A237),
+                                            width: 2,
+                                          ),
+                                        ),
+                                      ),
+                                      validator: (_) =>
+                                          _orderType == 'middleman' &&
+                                              _selectedMiddleMan == null
+                                          ? 'Please select a middleman'
+                                          : null,
+                                    ),
+                              ),
+                              const SizedBox(width: 8),
+                              SizedBox(
+                                height: 56,
+                                child: ElevatedButton(
+                                  onPressed: _showAddMiddleManDialog,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(
+                                      0xFFD4A237,
+                                    ).withOpacity(0.1),
+                                    foregroundColor: const Color(0xFFD4A237),
+                                    elevation: 0,
+                                    side: const BorderSide(
+                                      color: Color(0xFFD4A237),
+                                      width: 1.2,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                  ),
+                                  child: const Icon(Icons.add),
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(
-                            color: Color(0xFFD4A237),
-                            width: 2,
+                    if (_selectedMiddleMan != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.account_balance_wallet_outlined,
+                                color: Colors.amber,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Current Khata: ₹${(_selectedMiddleMan?['total_balance'] as num?)?.toStringAsFixed(0) ?? '0'}',
+                                style: const TextStyle(
+                                  color: Colors.amber,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
-                      validator: (v) =>
-                          _orderType == 'middleman' && (v == null || v.isEmpty)
-                          ? 'Middleman name is required'
-                          : null,
-                    ),
-                    const SizedBox(height: 14),
-                    TextFormField(
-                      controller: _middlemanPhoneController,
-                      style: const TextStyle(color: Colors.white),
-                      keyboardType: TextInputType.phone,
-                      decoration: InputDecoration(
-                        labelText: 'Middleman Phone Number',
-                        labelStyle: const TextStyle(color: Colors.white54),
-                        prefixIcon: const Icon(
-                          Icons.phone,
-                          color: Color(0xFFD4A237),
+                    const SizedBox(height: 8),
+                    if (_paymentStatus == 'pending' &&
+                        _selectedMiddleMan != null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
                         ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(
-                            color: Color(0xFFD4A237),
-                            width: 1.2,
+                        decoration: BoxDecoration(
+                          color: Colors.green.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: Colors.greenAccent.withOpacity(0.3),
                           ),
                         ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(
-                            color: Color(0xFFD4A237),
-                            width: 2,
-                          ),
+                        child: const Row(
+                          children: [
+                            Icon(
+                              Icons.auto_awesome,
+                              color: Colors.greenAccent,
+                              size: 16,
+                            ),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Will auto-add to Khata (pending payment)',
+                                style: TextStyle(
+                                  color: Colors.greenAccent,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      validator: (v) =>
-                          _orderType == 'middleman' && (v == null || v.isEmpty)
-                          ? 'Phone number is required'
-                          : null,
-                    ),
-                    const SizedBox(height: 20),
                   ],
+                  const SizedBox(height: 20),
 
                   // Total Value
                   TextFormField(

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -107,26 +107,19 @@ class _OwnerViewState extends State<OwnerView> {
     _requestSubscription?.unsubscribe();
     if (_companyId == null) return;
 
-    // NOTE: No column filter here — UPDATE events from Supabase are silently
-    // dropped when a column filter is used unless REPLICA IDENTITY FULL is set.
-    // We filter by company_id inside the callback instead.
     _requestSubscription = supabase
-        .channel('owner_requests_${_companyId}')
+        .channel('public:company_join_requests')
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
           schema: 'public',
           table: 'company_join_requests',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'company_id',
+            value: _companyId!,
+          ),
           callback: (payload) {
-            // Filter by company_id in callback
-            final record = payload.newRecord.isNotEmpty
-                ? payload.newRecord
-                : payload.oldRecord;
-            final recordCompanyId = record['company_id'];
-            if (recordCompanyId != null && recordCompanyId != _companyId)
-              return;
-
             if (payload.eventType == PostgresChangeEvent.insert) {
-              // Play sound from any tab
               _audioPlayer.play(AssetSource('sounds/notification.mp3'));
             }
             _fetchRequestCount();
@@ -239,7 +232,7 @@ class _OwnerViewState extends State<OwnerView> {
                       Expanded(
                         child: SelectableText(
                           !_showId && _companyId != null
-                              ? '•' * 12
+                              ? 'ΓÇó' * 12
                               : (_companyId ?? 'Generating...'),
                           style: const TextStyle(
                             color: Colors.white70,
@@ -321,7 +314,9 @@ class _OwnerViewState extends State<OwnerView> {
                   ],
                 ),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.blueAccent.withOpacity(0.2)),
+                border: Border.all(
+                  color: Colors.blueAccent.withOpacity(0.2),
+                ),
               ),
               child: Row(
                 children: [
@@ -343,7 +338,7 @@ class _OwnerViewState extends State<OwnerView> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Manage Menu',
+                          'Manage Inventory',
                           style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
@@ -351,8 +346,11 @@ class _OwnerViewState extends State<OwnerView> {
                           ),
                         ),
                         Text(
-                          'Track food items and recipes',
-                          style: TextStyle(color: Colors.white54, fontSize: 13),
+                          'Track food items and stock',
+                          style: TextStyle(
+                            color: Colors.white54,
+                            fontSize: 13,
+                          ),
                         ),
                       ],
                     ),
@@ -392,7 +390,9 @@ class _OwnerViewState extends State<OwnerView> {
                   ],
                 ),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.orangeAccent.withOpacity(0.2)),
+                border: Border.all(
+                  color: Colors.orangeAccent.withOpacity(0.2),
+                ),
               ),
               child: Row(
                 children: [
@@ -423,7 +423,10 @@ class _OwnerViewState extends State<OwnerView> {
                         ),
                         Text(
                           'View and manage your team members',
-                          style: TextStyle(color: Colors.white54, fontSize: 13),
+                          style: TextStyle(
+                            color: Colors.white54,
+                            fontSize: 13,
+                          ),
                         ),
                       ],
                     ),
@@ -439,69 +442,31 @@ class _OwnerViewState extends State<OwnerView> {
           ),
 
           const SizedBox(height: 30),
-
-          // Manage Middlemen Action
-          InkWell(
-            onTap: () {
-              if (_companyId != null) {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => KaathaScreen(companyId: _companyId!),
-                  ),
-                );
-              }
-            },
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Colors.greenAccent.withOpacity(0.15),
-                    Colors.greenAccent.withOpacity(0.05),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.greenAccent.withOpacity(0.2)),
+          // Placeholder for future features
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(40),
+            decoration: BoxDecoration(
+              color: Colors.orangeAccent.withOpacity(0.02),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: Colors.orangeAccent.withOpacity(0.1),
+                width: 1,
               ),
-              child: Row(
+            ),
+            child: Center(
+              child: Column(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.greenAccent.withOpacity(0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.account_balance_wallet_outlined,
-                      color: Colors.greenAccent,
-                      size: 24,
-                    ),
+                  Icon(
+                    Icons.analytics_outlined,
+                    color: Colors.orangeAccent.withOpacity(0.2),
+                    size: 48,
                   ),
-                  const SizedBox(width: 16),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Manage Middlemen',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                        Text(
-                          'Khata ledger & middleman accounts',
-                          style: TextStyle(color: Colors.white54, fontSize: 13),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Icon(
-                    Icons.arrow_forward_ios_rounded,
-                    color: Colors.white24,
-                    size: 16,
+                  const SizedBox(height: 16),
+                  Text(
+                    'Revenue & Orders overview will appear here soon.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white.withOpacity(0.3)),
                   ),
                 ],
               ),
@@ -511,7 +476,6 @@ class _OwnerViewState extends State<OwnerView> {
       ),
     );
   }
-
   Widget build(BuildContext context) {
     if (_loading) {
       return const Scaffold(
@@ -555,13 +519,10 @@ class _OwnerViewState extends State<OwnerView> {
       body: _selectedIndex == 0
           ? _buildDashboardTab()
           : _selectedIndex == 1
-          ? OrdersTab(companyId: _companyId ?? '')
-          : _selectedIndex == 2
-          ? JoinRequestsScreen(
-              key: ValueKey(_pendingCount),
-              onRequestHandled: _fetchRequestCount,
-            )
-          : KaathaScreen(companyId: _companyId ?? ''),
+              ? OrdersTab(companyId: _companyId ?? '')
+              : _selectedIndex == 2
+                  ? const JoinRequestsScreen()
+                  : KaathaScreen(companyId: _companyId ?? ''),
       bottomNavigationBar: BottomNavigationBar(
         backgroundColor: const Color(0xFF161626),
         selectedItemColor: Colors.orangeAccent,

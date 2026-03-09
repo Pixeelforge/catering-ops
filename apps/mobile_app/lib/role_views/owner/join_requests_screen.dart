@@ -3,9 +3,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:audioplayers/audioplayers.dart';
 
 class JoinRequestsScreen extends StatefulWidget {
-  const JoinRequestsScreen({super.key, this.onRequestHandled});
-
+  final String? companyId;
   final VoidCallback? onRequestHandled;
+
+  const JoinRequestsScreen({super.key, this.companyId, this.onRequestHandled});
 
   @override
   State<JoinRequestsScreen> createState() => _JoinRequestsScreenState();
@@ -32,29 +33,28 @@ class _JoinRequestsScreenState extends State<JoinRequestsScreen> {
     super.dispose();
   }
 
-  /// Fetches the company_id first, then starts both data fetch & realtime listener.
+  /// Starts data fetch & realtime listener.
   Future<void> _init() async {
-    final user = supabase.auth.currentUser;
-    if (user == null) {
-      if (mounted) setState(() => _loading = false);
-      return;
+    _companyId = widget.companyId;
+
+    // Fallback: Fetch companyId if not passed from parent
+    if (_companyId == null || _companyId!.isEmpty) {
+      final user = supabase.auth.currentUser;
+      if (user != null) {
+        try {
+          final profileRes = await supabase
+              .from('profiles')
+              .select('company_id')
+              .eq('id', user.id)
+              .maybeSingle();
+          _companyId = profileRes?['company_id'];
+        } catch (e) {
+          debugPrint('Error fetching fallback company_id: $e');
+        }
+      }
     }
 
-    try {
-      final profileRes = await supabase
-          .from('profiles')
-          .select('company_id')
-          .eq('id', user.id)
-          .maybeSingle();
-
-      _companyId = profileRes?['company_id'];
-
-      if (_companyId == null) {
-        if (mounted) setState(() => _loading = false);
-        return;
-      }
-    } catch (e) {
-      debugPrint('Error fetching company_id: $e');
+    if (_companyId == null || _companyId!.isEmpty) {
       if (mounted) setState(() => _loading = false);
       return;
     }

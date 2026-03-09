@@ -558,7 +558,7 @@ class _OwnerViewState extends State<OwnerView> {
           ? OrdersTab(companyId: _companyId ?? '')
           : _selectedIndex == 2
           ? JoinRequestsScreen(
-              key: ValueKey(_pendingCount),
+              companyId: _companyId ?? '',
               onRequestHandled: _fetchRequestCount,
             )
           : KaathaScreen(companyId: _companyId ?? ''),

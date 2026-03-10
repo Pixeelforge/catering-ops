@@ -438,6 +438,8 @@ class _KaathaScreenState extends State<KaathaScreen> {
                     'phone_number': addedData['phone_number'],
                     'total_balance': addedData['total_balance'] ?? 0.0,
                   });
+                  // 🔹 Instant local refresh after creation
+                  _fetchMiddleMen();
                 } catch (e) {
                   debugPrint('Error adding: $e');
                 }

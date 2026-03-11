@@ -1,1 +1,15 @@
 .env
+Android/
+ios/
+.dart_tool/
+build/
+*.pyc
+__pycache__/
+.vscode/
+.idea/
+*.log
+node_modules/
+dist/
+target/
+bin/
+obj/

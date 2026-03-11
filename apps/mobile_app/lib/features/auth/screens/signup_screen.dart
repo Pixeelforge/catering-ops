@@ -95,12 +95,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
     try {
       final supabase = Supabase.instance.client;
 
+      // Format phone for auth: ensure it has + and country code
+      final String cleanPhone = phone.replaceAll(RegExp(r'\D'), '');
+      final String authPhone = cleanPhone.length == 10
+          ? '+91$cleanPhone'
+          : '+${cleanPhone}';
+
       final res = await supabase.auth.signUp(
         email: email,
+        phone: authPhone,
         password: password,
         data: {
           'full_name': fullName,
-          'phone': phone,
+          'phone': phone, // Keep original in metadata if preferred
           'role': _role,
           if (_role == 'owner') 'company_name': companyName,
         },

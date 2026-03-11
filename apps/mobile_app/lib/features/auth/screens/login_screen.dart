@@ -12,7 +12,7 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _email = TextEditingController();
+  final _identifier = TextEditingController();
   final _password = TextEditingController();
   final _auth = AuthService();
 
@@ -20,18 +20,37 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _error;
 
   Future<void> _login() async {
-    final email = _email.text.trim();
+    final input = _identifier.text.trim();
     final password = _password.text.trim();
 
-    if (email.isEmpty || password.isEmpty) {
-      setState(() => _error = "Email and password cannot be empty");
+    if (input.isEmpty || password.isEmpty) {
+      setState(() => _error = "Credentials cannot be empty");
       return;
     }
 
-    final emailRegExp = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
-    if (!emailRegExp.hasMatch(email)) {
-      setState(() => _error = "Please enter a valid email address");
-      return;
+    // Detection Logic
+    final bool isEmail = input.contains('@');
+    String? email;
+    String? phone;
+
+    if (isEmail) {
+      final emailRegExp = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+      if (!emailRegExp.hasMatch(input)) {
+        setState(() => _error = "Please enter a valid email address");
+        return;
+      }
+      email = input;
+    } else {
+      // Clean phone number: remove non-numeric
+      final cleanPhone = input.replaceAll(RegExp(r'\D'), '');
+      if (cleanPhone.length < 10) {
+        setState(
+          () => _error = "Please enter a valid email or 10-digit phone number",
+        );
+        return;
+      }
+      // Automnatically add +91 for Indian numbers if it's 10 digits
+      phone = cleanPhone.length == 10 ? '+91$cleanPhone' : '+$cleanPhone';
     }
 
     setState(() {
@@ -40,7 +59,7 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      await _auth.signIn(_email.text.trim(), _password.text.trim());
+      await _auth.signIn(email: email, phone: phone, password: password);
 
       final user = Supabase.instance.client.auth.currentUser;
       if (user != null) {
@@ -73,7 +92,7 @@ class _LoginScreenState extends State<LoginScreen> {
     } on AuthException catch (e) {
       setState(() {
         _error = e.message.contains("Invalid login credentials")
-            ? "Incorrect email or password"
+            ? "Incorrect credentials or password"
             : e.message;
       });
     } catch (_) {
@@ -91,7 +110,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
-    _email.dispose();
+    _identifier.dispose();
     _password.dispose();
     super.dispose();
   }
@@ -157,9 +176,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Column(
                     children: [
                       _buildTextField(
-                        controller: _email,
-                        label: 'Email Address',
-                        icon: Icons.email_outlined,
+                        controller: _identifier,
+                        label: 'Email or Phone Number',
+                        icon: Icons.person_outline,
                         keyboardType: TextInputType.emailAddress,
                       ),
                       const SizedBox(height: 20),

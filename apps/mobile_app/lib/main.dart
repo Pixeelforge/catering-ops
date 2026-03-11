@@ -5,6 +5,7 @@ import 'features/auth/screens/login_screen.dart';
 import 'features/auth/screens/signup_screen.dart';
 import 'features/dashboard/dashboard_screen.dart';
 import 'role_views/owner/join_requests_screen.dart';
+import 'features/auth/screens/lottie_splash_screen.dart';
 import 'core/env.dart';
 
 void main() async {
@@ -44,10 +45,14 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         brightness: Brightness.dark,
         primarySwatch: Colors.orange,
-        scaffoldBackgroundColor: const Color(0xFF1A1A2E),
+        scaffoldBackgroundColor: const Color(
+          0xFF1A1A2E,
+        ), // This matches the Lottie background
       ),
-      initialRoute: '/',
+      initialRoute: '/splash',
       routes: {
+        '/splash': (context) =>
+            const LottieSplashScreen(nextScreen: AuthGate()),
         '/': (context) => const AuthGate(),
         '/login': (context) => const LoginScreen(),
         '/signup': (context) => const SignUpScreen(),

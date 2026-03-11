@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'create_order_screen.dart';
 import 'bids_screen.dart';
 
@@ -25,6 +26,71 @@ class _OrdersTabState extends State<OrdersTab> {
   // Cache of bids per order: orderId -> list of bids
   final Map<String, List<Map<String, dynamic>>> _bidsCache = {};
   RealtimeChannel? _bidsSubscription;
+
+  Future<void> _shareToWhatsApp(Map<String, dynamic> order, String phone) async {
+    // Format phone (remove spaces, add +91 if 10 digits)
+    String formattedPhone = phone.replaceAll(RegExp(r'\D'), '');
+    if (formattedPhone.length == 10) {
+      formattedPhone = '+91$formattedPhone';
+    } else if (!formattedPhone.startsWith('+')) {
+      formattedPhone = '+$formattedPhone'; // basic fallback
+    }
+
+    // Format Date
+    String dateStr = 'TBD';
+    if (order['event_date'] != null) {
+      final date = DateTime.parse(order['event_date']).toLocal();
+      dateStr = DateFormat('MMM dd, yyyy').format(date);
+    }
+
+    // Format Time
+    String timeStr = 'TBD';
+    if (order['event_time'] != null) {
+      try {
+        final timeParts = order['event_time'].toString().split(':');
+        if (timeParts.length >= 2) {
+          final now = DateTime.now();
+          final time = DateTime(now.year, now.month, now.day, int.parse(timeParts[0]), int.parse(timeParts[1]));
+          timeStr = DateFormat('h:mm a').format(time);
+        } else {
+          timeStr = order['event_time'];
+        }
+      } catch (e) {
+        timeStr = order['event_time'];
+      }
+    }
+
+    final String message = '''
+Hello! Here are the delivery details for your upcoming order:
+👤 Client: ${order['client_name'] ?? 'N/A'}
+📅 Date: $dateStr
+⌚ Time: $timeStr
+📍 Location: ${order['venue_address'] ?? 'N/A'}
+👥 Guests: ${order['guest_count'] ?? 'N/A'}
+₹ Fare: ₹${order['delivery_fare'] ?? 'N/A'}
+
+Please ensure timely delivery!
+''';
+
+    final encodedMsg = Uri.encodeComponent(message);
+    final url = Uri.parse('whatsapp://send?phone=$formattedPhone&text=$encodedMsg');
+
+    try {
+      if (await canLaunchUrl(url)) {
+        await launchUrl(url);
+      } else {
+        // Fallback to web URL if app is not installed
+        final webUrl = Uri.parse('https://wa.me/${formattedPhone.replaceAll('+', '')}?text=$encodedMsg');
+        if (await canLaunchUrl(webUrl)) {
+          await launchUrl(webUrl, mode: LaunchMode.externalApplication);
+        } else {
+          _toast('Could not open WhatsApp');
+        }
+      }
+    } catch (e) {
+      _toast('Error launching WhatsApp');
+    }
+  }
 
   Future<void> _sendToKhata(
     String orderId,
@@ -661,13 +727,14 @@ class _OrdersTabState extends State<OrdersTab> {
                                     child: FutureBuilder(
                                       future: _supabase
                                           .from('profiles')
-                                          .select('full_name')
+                                          .select('full_name, phone')
                                           .eq('id', deliveryStaffId!)
                                           .maybeSingle(),
                                       builder: (context, snapshot) {
                                         final name =
                                             snapshot.data?['full_name'] ??
                                             'Loading...';
+                                        
                                         return Text(
                                           name,
                                           style: const TextStyle(
@@ -686,6 +753,7 @@ class _OrdersTabState extends State<OrdersTab> {
                                 padding: const EdgeInsets.only(
                                   top: 4,
                                   left: 22,
+                                  bottom: 12,
                                 ),
                                 child: Text(
                                   isDeliveryOpen
@@ -697,6 +765,64 @@ class _OrdersTabState extends State<OrdersTab> {
                                   ),
                                 ),
                               ),
+                              
+                            // NEW ACCESSIBLE WHATSAPP SHARE BUTTON BAR
+                            if (!isDeliveryOpen && deliveryStaffId != null)
+                              FutureBuilder(
+                                future: _supabase
+                                    .from('profiles')
+                                    .select('phone')
+                                    .eq('id', deliveryStaffId)
+                                    .maybeSingle(),
+                                builder: (context, snapshot) {
+                                  final phone = snapshot.data?['phone'];
+                                  if (phone == null) return const SizedBox.shrink();
+                                  
+                                  return Padding(
+                                    padding: const EdgeInsets.only(
+                                      top: 4,
+                                      left: 22,
+                                      bottom: 12,
+                                      right: 16,
+                                    ),
+                                    child: GestureDetector(
+                                      onTap: () => _shareToWhatsApp(order, phone.toString()),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 8,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.green.withOpacity(0.15),
+                                          borderRadius: BorderRadius.circular(8),
+                                          border: Border.all(
+                                            color: Colors.green.withOpacity(0.5),
+                                          ),
+                                        ),
+                                        child: const Row(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Icon(
+                                              Icons.wechat,
+                                              color: Colors.greenAccent,
+                                              size: 18,
+                                            ),
+                                            SizedBox(width: 8),
+                                            Text(
+                                              'Share Details via WhatsApp',
+                                              style: TextStyle(
+                                                color: Colors.greenAccent,
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                              
                             if (isDeliveryOpen &&
                                 order['delivery_bidding_ends_at'] != null)
                               Padding(

@@ -230,95 +230,124 @@ class _KaathaScreenState extends State<KaathaScreen> {
 
   Future<void> _recordPayment(int index) async {
     final man = _middleMen[index];
-    final controller = TextEditingController();
+    final tag = '${man['name']} (${man['phone_number']})';
 
-    final amount = await showDialog<double>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A2E),
-        title: Text(
-          'Record Payment from ${man['name']}',
-          style: const TextStyle(color: Colors.white, fontSize: 18),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'Current Collector Amount: ₹${(man['total_balance'] as num).toStringAsFixed(2)}',
-              style: const TextStyle(color: Colors.white70),
+    // 1. Fetch available "Paid" orders for this middleman
+    List<Map<String, dynamic>> orders = [];
+    try {
+      final res = await _supabase
+          .from('orders')
+          .select('id, client_name, total_value, payment_status, event_date')
+          .eq('company_id', widget.companyId)
+          .eq('middleman_tag', tag)
+          .eq('payment_status', 'paid');
+      orders = List<Map<String, dynamic>>.from(res);
+    } catch (e) {
+      debugPrint('Error fetching paid orders: $e');
+    }
+
+    if (orders.isEmpty) {
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            backgroundColor: const Color(0xFF1A1A2E),
+            title: const Text(
+              'No Paid Orders',
+              style: TextStyle(color: Colors.white),
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: controller,
-              keyboardType: TextInputType.number,
-              autofocus: true,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                labelText: 'Amount Paid (₹)',
-                labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
-                filled: true,
-                fillColor: Colors.white.withOpacity(0.05),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
+            content: const Text(
+              'There are no orders marked as "Paid" for this Middleman. Please mark orders as "Paid" first before receiving cash.',
+              style: TextStyle(color: Colors.white70),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text(
+                  'OK',
+                  style: TextStyle(color: Colors.orangeAccent),
                 ),
+              ),
+            ],
+          ),
+        );
+      }
+      return;
+    }
+
+    // 2. Show selection dialog
+    final selectedOrder = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1A1A2E),
+          title: Text(
+            'Select Paid Order from ${man['name']}',
+            style: const TextStyle(color: Colors.white, fontSize: 18),
+          ),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: orders.isEmpty
+                ? const Text(
+                    'No orders marked as "Paid" found.',
+                    style: TextStyle(color: Colors.white70),
+                  )
+                : ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: orders.length,
+                    itemBuilder: (context, i) {
+                      final order = orders[i];
+                      final val =
+                          (order['total_value'] as num?)?.toDouble() ?? 0.0;
+                      return ListTile(
+                        leading: const Icon(
+                          Icons.check_circle,
+                          color: Colors.greenAccent,
+                        ),
+                        title: Text(
+                          order['client_name'] ?? 'Unknown Order',
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                        subtitle: Text(
+                          '₹${val.toStringAsFixed(0)}',
+                          style: const TextStyle(color: Colors.white54),
+                        ),
+                        onTap: () => Navigator.pop(context, order),
+                      );
+                    },
+                  ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                'Cancel',
+                style: TextStyle(color: Colors.white.withOpacity(0.5)),
               ),
             ),
           ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancel',
-              style: TextStyle(color: Colors.white.withOpacity(0.5)),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final val = double.tryParse(controller.text);
-              Navigator.pop(context, val);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.greenAccent,
-            ),
-            child: const Text(
-              'Confirm Payment',
-              style: TextStyle(
-                color: Colors.black,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
 
-    if (amount != null && amount > 0 && mounted) {
+    if (selectedOrder != null && mounted) {
+      final amount = (selectedOrder['total_value'] as num?)?.toDouble() ?? 0.0;
       final currentBalance = (man['total_balance'] as num).toDouble();
-      if (amount > currentBalance) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Error: Payment amount cannot be more than the Balance!',
-            ),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
-        return;
-      }
+
       try {
         final newBalance = currentBalance - amount;
+        // Ensure balance doesn't go below zero (though it shouldn't if orders are correct)
+        final finalBalance = newBalance < 0 ? 0.0 : newBalance;
+
         await _supabase
             .from('middle_men')
-            .update({'total_balance': newBalance})
+            .update({'total_balance': finalBalance})
             .eq('id', man['id']);
 
         if (mounted) {
           _fetchMiddleMen(); // Instant refresh
 
-          if (newBalance == 0) {
+          if (finalBalance == 0 && currentBalance > 0) {
             _confettiController.play();
             _audioPlayer.play(
               UrlSource(
@@ -352,7 +381,7 @@ class _KaathaScreenState extends State<KaathaScreen> {
                   ],
                 ),
                 content: Text(
-                  'Full payment received from ${man['name']}! Your Khata is now clear for this collector.',
+                  'Order payment of ₹${amount.toStringAsFixed(0)} received from ${man['name']}! Your Khata is now clear for this collector.',
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: Colors.white70),
                 ),
@@ -382,7 +411,7 @@ class _KaathaScreenState extends State<KaathaScreen> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
-                  'Payment of ₹$amount recorded. New balance: ₹${newBalance.toStringAsFixed(2)}',
+                  'Order payment of ₹${amount.toStringAsFixed(0)} recorded. Remaining balance: ₹${finalBalance.toStringAsFixed(2)}',
                 ),
                 backgroundColor: Colors.green,
               ),
@@ -404,10 +433,6 @@ class _KaathaScreenState extends State<KaathaScreen> {
           appBar: AppBar(
             backgroundColor: Colors.transparent,
             elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
-              onPressed: () => Navigator.pop(context),
-            ),
             title: const Text(
               'Kaatha (Ledger)',
               style: TextStyle(

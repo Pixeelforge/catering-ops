@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_contacts/flutter_contacts.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter/foundation.dart';
 
 class StaffManagementScreen extends StatefulWidget {
   final String companyId;
@@ -279,6 +282,67 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              ElevatedButton.icon(
+                onPressed: () async {
+                  if (kIsWeb) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Contact import is only available on mobile devices.',
+                        ),
+                        backgroundColor: Colors.orange,
+                      ),
+                    );
+                    return;
+                  }
+                  try {
+                    if (await Permission.contacts.request().isGranted) {
+                      final Contact? contact =
+                          await FlutterContacts.openExternalPick();
+                      if (contact != null) {
+                        final fullContact = await FlutterContacts.getContact(
+                          contact.id,
+                        );
+                        if (fullContact != null) {
+                          nameCtrl.text = fullContact.displayName;
+                          if (fullContact.phones.isNotEmpty) {
+                            String phone = fullContact.phones.first.number;
+                            phoneCtrl.text = phone.replaceAll(
+                              RegExp(r'\s+'),
+                              '',
+                            );
+                          }
+                        }
+                      }
+                    } else {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Contact permission denied. Please enable it in settings.',
+                            ),
+                            backgroundColor: Colors.redAccent,
+                          ),
+                        );
+                      }
+                    }
+                  } catch (e) {
+                    debugPrint('Error picking contact: $e');
+                  }
+                },
+                icon: const Icon(Icons.contact_phone, size: 18),
+                label: const Text('Import from Contacts'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orangeAccent.withOpacity(0.1),
+                  foregroundColor: Colors.orangeAccent,
+                  elevation: 0,
+                  minimumSize: const Size(double.infinity, 45),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
               TextField(
                 controller: nameCtrl,
                 style: const TextStyle(color: Colors.white),

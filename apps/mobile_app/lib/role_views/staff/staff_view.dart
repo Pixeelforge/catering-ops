@@ -910,6 +910,32 @@ class _StaffViewState extends State<StaffView> {
               return res;
             }(),
             builder: (context, snapshot) {
+              final isClaimMode = biddingEndsAt == null;
+
+              if (isClaimMode) {
+                return SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () => _claimOrder(order),
+                    icon: const Icon(Icons.touch_app, color: Colors.black87),
+                    label: const Text(
+                      'CLAIM DELIVERY INSTANTLY',
+                      style: TextStyle(
+                        color: Colors.black87,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.tealAccent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                  ),
+                );
+              }
+
               if (!snapshot.hasData || snapshot.data == null) {
                 return Row(
                   children: [
@@ -1122,6 +1148,38 @@ class _StaffViewState extends State<StaffView> {
     }
   }
 
+  Future<void> _claimOrder(Map<String, dynamic> order) async {
+    final user = supabase.auth.currentUser;
+    if (user == null) return;
+
+    try {
+      // Optimistic claim: Only succeed if delivery_staff_id is still null
+      final res = await supabase
+          .from('orders')
+          .update({'delivery_staff_id': user.id, 'is_delivery_open': false})
+          .eq('id', order['id'])
+          .isFilter('delivery_staff_id', null)
+          .select();
+
+      if ((res as List).isNotEmpty) {
+        _showToast(
+          'Order Claimed! ✅ Check your active deliveries.',
+          Colors.green,
+        );
+        _audioPlayer.play(AssetSource('sounds/notification.mp3'));
+        _fetchAssignedOrders();
+      } else {
+        _showToast(
+          'Too late! This order was already claimed by someone else. ❌',
+          Colors.redAccent,
+        );
+        _fetchAssignedOrders();
+      }
+    } catch (e) {
+      _showToast('Error claiming order: $e', Colors.redAccent);
+    }
+  }
+
   Future<void> _revokeBid(String orderId) async {
     final user = supabase.auth.currentUser;
     if (user == null) return;
@@ -1163,23 +1221,60 @@ class _StaffViewState extends State<StaffView> {
   }
 
   Widget _buildUpcomingEvents() {
+    final activeOrders = _assignedOrders
+        .where((o) => o['order_status'] != 'completed')
+        .toList();
+    final completedOrders = _assignedOrders
+        .where((o) => o['order_status'] == 'completed')
+        .toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Your Assigned Deliveries',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
+        if (activeOrders.isNotEmpty) ...[
+          const Text(
+            'Upcoming Deliveries',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
           ),
-        ),
-        const SizedBox(height: 16),
-        if (_loadingAssignedOrders)
-          const Center(
-            child: CircularProgressIndicator(color: Colors.orangeAccent),
-          )
-        else if (_assignedOrders.isEmpty)
+          const SizedBox(height: 16),
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: activeOrders.length,
+            itemBuilder: (context, index) {
+              return _buildAssignedOrderTile(activeOrders[index]);
+            },
+          ),
+          const SizedBox(height: 32),
+        ],
+
+        if (completedOrders.isNotEmpty) ...[
+          const Text(
+            'Delivered Orders',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 16),
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: completedOrders.length,
+            itemBuilder: (context, index) {
+              return _buildAssignedOrderTile(completedOrders[index]);
+            },
+          ),
+        ],
+
+        if (activeOrders.isEmpty &&
+            completedOrders.isEmpty &&
+            !_loadingAssignedOrders)
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(40),
@@ -1208,16 +1303,6 @@ class _StaffViewState extends State<StaffView> {
                 ],
               ),
             ),
-          )
-        else
-          ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: _assignedOrders.length,
-            itemBuilder: (context, index) {
-              final order = _assignedOrders[index];
-              return _buildAssignedOrderTile(order);
-            },
           ),
       ],
     );
@@ -1270,13 +1355,19 @@ class _StaffViewState extends State<StaffView> {
                   vertical: 4,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.orangeAccent.withOpacity(0.1),
+                  color: order['order_status'] == 'completed'
+                      ? Colors.greenAccent.withOpacity(0.1)
+                      : Colors.orangeAccent.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Text(
-                  'Upcoming',
+                child: Text(
+                  order['order_status'] == 'completed'
+                      ? 'Completed'
+                      : 'Upcoming',
                   style: TextStyle(
-                    color: Colors.orangeAccent,
+                    color: order['order_status'] == 'completed'
+                        ? Colors.greenAccent
+                        : Colors.orangeAccent,
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
                   ),
@@ -1384,8 +1475,7 @@ class _StaffViewState extends State<StaffView> {
           .from('orders')
           .select()
           .eq('delivery_staff_id', user.id)
-          .eq('order_status', 'upcoming')
-          .order('event_date');
+          .order('event_date', ascending: false);
 
       // Only fetch open (claimable) orders if we know the company
       List<dynamic> resOpen = [];

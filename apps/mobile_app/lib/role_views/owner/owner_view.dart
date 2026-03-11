@@ -128,6 +128,30 @@ class _OwnerViewState extends State<OwnerView> {
             if (payload.eventType == PostgresChangeEvent.insert) {
               // Play sound from any tab
               _audioPlayer.play(AssetSource('sounds/notification.mp3'));
+
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Row(
+                      children: [
+                        Icon(Icons.person_add, color: Colors.white),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'New Join Request! Visit the Staff tab to review.',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ),
+                    backgroundColor: Colors.orangeAccent,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                );
+              }
             }
             _fetchRequestCount();
           },

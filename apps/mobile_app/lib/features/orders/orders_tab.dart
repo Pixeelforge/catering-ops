@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'create_order_screen.dart';
 import 'bids_screen.dart';
 
@@ -136,18 +137,13 @@ class _OrdersTabState extends State<OrdersTab> {
   void _setupRealtime() {
     // Orders subscription — no column filter to avoid REPLICA IDENTITY issues
     _ordersSubscription = _supabase
-        .channel('orders_tab_orders_${widget.companyId}')
+        .channel('orders_tab_orders_global') // Using a cleaner channel name
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
           schema: 'public',
           table: 'orders',
           callback: (payload) {
-            final record = payload.newRecord.isNotEmpty
-                ? payload.newRecord
-                : payload.oldRecord;
-            if (record['company_id'] != null &&
-                record['company_id'] != widget.companyId)
-              return;
+            // Refresh on any change for now to be safe, filtering is handled by _fetchOrders select
             _fetchOrders();
           },
         )
@@ -274,6 +270,77 @@ class _OrdersTabState extends State<OrdersTab> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(msg), backgroundColor: Colors.orangeAccent),
       );
+    }
+  }
+
+  Future<void> _shareToWhatsApp(
+    Map<String, dynamic> order,
+    String? staffId,
+  ) async {
+    if (staffId == null) {
+      _toast('No delivery staff assigned');
+      return;
+    }
+
+    try {
+      // 1. Fetch staff profile (especially phone)
+      final staffProfile = await _supabase
+          .from('profiles')
+          .select('full_name, phone')
+          .eq('id', staffId)
+          .maybeSingle();
+
+      if (staffProfile == null || staffProfile['phone'] == null) {
+        _toast('Staff phone number not found');
+        return;
+      }
+
+      final String staffPhone = staffProfile['phone'];
+      // Clean phone number: remove non-numeric
+      final String cleanPhone = staffPhone.replaceAll(RegExp(r'\D'), '');
+
+      // Ensure it has country code (Assuming Indian numbers if 10 digits)
+      final String finalPhone = cleanPhone.length == 10
+          ? '91$cleanPhone'
+          : cleanPhone;
+
+      // 2. Format Message
+      final DateTime eventDate = DateTime.parse(order['event_date']).toLocal();
+      final String dateStr = DateFormat(
+        'EEE, MMM d • h:mm a',
+      ).format(eventDate);
+      final List menuItems = order['menu_items'] ?? [];
+      final String menuStr = menuItems.join('\n- ');
+
+      final String message =
+          '''
+*📦 New Order Details*
+--------------------------
+*Client:* ${order['client_name']}
+*Date:* $dateStr
+*Value:* ₹${order['total_value']}
+*Address:* ${order['event_address'] ?? 'Check App'}
+
+*Menu Items:*
+- $menuStr
+
+*Please confirm once received.*
+--------------------------
+''';
+
+      // 3. Launch WhatsApp
+      final Uri whatsappUri = Uri.parse(
+        'https://wa.me/$finalPhone?text=${Uri.encodeComponent(message)}',
+      );
+
+      if (await canLaunchUrl(whatsappUri)) {
+        await launchUrl(whatsappUri, mode: LaunchMode.externalApplication);
+      } else {
+        _toast('Could not launch WhatsApp');
+      }
+    } catch (e) {
+      debugPrint('Error sharing to WhatsApp: $e');
+      _toast('Error: $e');
     }
   }
 
@@ -573,6 +640,10 @@ class _OrdersTabState extends State<OrdersTab> {
 
               // Expandable Section
               AnimatedCrossFade(
+                crossFadeState: isExpanded
+                    ? CrossFadeState.showSecond
+                    : CrossFadeState.showFirst,
+                duration: const Duration(milliseconds: 300),
                 firstChild: const SizedBox.shrink(),
                 secondChild: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -982,31 +1053,38 @@ class _OrdersTabState extends State<OrdersTab> {
                               ),
                             )
                           else
-                            // Assign for Delivery — disabled while bidding is active
+                            // Assign for Delivery — disabled while bidding is active or if delivered
                             Padding(
                               padding: const EdgeInsets.only(top: 10),
                               child: SizedBox(
                                 width: double.infinity,
                                 child: ElevatedButton.icon(
-                                  onPressed: isDeliveryOpen
+                                  onPressed:
+                                      (isDeliveryOpen ||
+                                          isDelivered ||
+                                          deliveryStaffId != null)
                                       ? null
                                       : () => _showAssignDialog(order['id']),
                                   icon: Icon(
                                     Icons.delivery_dining,
-                                    color: isDeliveryOpen
+                                    color: (isDeliveryOpen || isDelivered)
                                         ? Colors.white24
                                         : Colors.black87,
                                     size: 18,
                                   ),
                                   label: Text(
-                                    isDeliveryOpen
+                                    isDelivered
+                                        ? 'Delivered'
+                                        : isDeliveryOpen
                                         ? 'Assign Locked (Bidding)'
-                                        : (deliveryStaffId != null ||
-                                              isDeliveryOpen)
+                                        : (deliveryStaffId != null)
                                         ? 'Re-assign Delivery'
                                         : 'Assign for Delivery',
                                     style: TextStyle(
-                                      color: isDeliveryOpen
+                                      color:
+                                          (isDeliveryOpen ||
+                                              isDelivered ||
+                                              deliveryStaffId != null)
                                           ? Colors.white24
                                           : Colors.black87,
                                       fontWeight: FontWeight.bold,
@@ -1014,9 +1092,47 @@ class _OrdersTabState extends State<OrdersTab> {
                                     ),
                                   ),
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: isDeliveryOpen
+                                    backgroundColor:
+                                        (isDeliveryOpen ||
+                                            isDelivered ||
+                                            deliveryStaffId != null)
                                         ? Colors.white.withOpacity(0.05)
                                         : const Color(0xFFD4A237),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12,
+                                    ),
+                                    elevation: 0,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          // WhatsApp Share — only if assigned
+                          if (deliveryStaffId != null && !isDelivered)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton.icon(
+                                  onPressed: () =>
+                                      _shareToWhatsApp(order, deliveryStaffId),
+                                  icon: const Icon(
+                                    Icons.chat,
+                                    color: Colors.white,
+                                    size: 18,
+                                  ),
+                                  label: const Text(
+                                    'Send Details via WhatsApp',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF25D366),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(12),
                                     ),
@@ -1035,7 +1151,10 @@ class _OrdersTabState extends State<OrdersTab> {
                               child: SizedBox(
                                 width: double.infinity,
                                 child: ElevatedButton.icon(
-                                  onPressed: (isKhataSaved || isDeliveryOpen)
+                                  onPressed:
+                                      (isKhataSaved ||
+                                          isDeliveryOpen ||
+                                          deliveryStaffId != null)
                                       ? null
                                       : () => _sendToKhata(
                                           order['id'],
@@ -1080,6 +1199,14 @@ class _OrdersTabState extends State<OrdersTab> {
                             padding: const EdgeInsets.only(top: 8),
                             child: TextButton.icon(
                               onPressed: () async {
+                                if (isDelivered) {
+                                  _toast('Delivered orders cannot be deleted');
+                                  return;
+                                }
+                                if (deliveryStaffId != null) {
+                                  _toast('Assigned orders cannot be deleted');
+                                  return;
+                                }
                                 final confirm = await showDialog<bool>(
                                   context: context,
                                   builder: (context) => AlertDialog(
@@ -1142,10 +1269,6 @@ class _OrdersTabState extends State<OrdersTab> {
                     ),
                   ],
                 ),
-                crossFadeState: isExpanded
-                    ? CrossFadeState.showSecond
-                    : CrossFadeState.showFirst,
-                duration: const Duration(milliseconds: 200),
               ),
             ],
           ),
@@ -1358,6 +1481,13 @@ class _OrdersTabState extends State<OrdersTab> {
                             style: TextStyle(color: Colors.purpleAccent),
                           ),
                         ),
+                        DropdownMenuItem(
+                          value: 'claim',
+                          child: Text(
+                            'Fastest Claim (Direct)',
+                            style: TextStyle(color: Colors.tealAccent),
+                          ),
+                        ),
                       ],
                       onChanged: (val) =>
                           setDialogState(() => assignmentType = val!),
@@ -1373,7 +1503,8 @@ class _OrdersTabState extends State<OrdersTab> {
                     if (assignmentType != 'none') ...[
                       const SizedBox(height: 16),
                       Text(
-                        assignmentType == 'specific'
+                        (assignmentType == 'specific' ||
+                                assignmentType == 'claim')
                             ? 'Delivery Fare (₹):'
                             : 'Base Fare (₹):',
                         style: const TextStyle(
@@ -1553,7 +1684,9 @@ class _OrdersTabState extends State<OrdersTab> {
                         'delivery_staff_id': assignmentType == 'specific'
                             ? selectedStaffId
                             : null,
-                        'is_delivery_open': assignmentType == 'open',
+                        'is_delivery_open':
+                            (assignmentType == 'open' ||
+                            assignmentType == 'claim'),
                         'delivery_fare': assignmentType == 'none' ? null : fare,
                         'delivery_bidding_ends_at': biddingEndsAt,
                       };

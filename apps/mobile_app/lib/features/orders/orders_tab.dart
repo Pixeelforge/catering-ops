@@ -227,10 +227,20 @@ class _OrdersTabState extends State<OrdersTab> {
       if (aUnassigned && !bUnassigned) return -1;
       if (!aUnassigned && bUnassigned) return 1;
 
-      // Then sort by event date (Earliest first)
+      // 2. Separate by status (Upcoming before Completed)
+      final aCompleted = a['order_status'] == 'completed';
+      final bCompleted = b['order_status'] == 'completed';
+      if (!aCompleted && bCompleted) return -1;
+      if (aCompleted && !bCompleted) return 1;
+
+      // 3. Sort by event date
       final aDate = DateTime.tryParse(a['event_date'] ?? '') ?? DateTime(2099);
       final bDate = DateTime.tryParse(b['event_date'] ?? '') ?? DateTime(2099);
-      final dateCompare = aDate.compareTo(bDate);
+      
+      final dateCompare = aCompleted 
+          ? bDate.compareTo(aDate) // Most recent completed first
+          : aDate.compareTo(bDate); // Soonest upcoming first
+          
       if (dateCompare != 0) return dateCompare;
 
       // Tie-breaker: newest created_at first for same event time
@@ -634,10 +644,12 @@ class _OrdersTabState extends State<OrdersTab> {
                                   ),
                                 ),
                                 if (isDeliveryOpen)
-                                  const Flexible(
+                                  Flexible(
                                     child: Text(
-                                      'Open for Bidding',
-                                      style: TextStyle(
+                                      order['delivery_bidding_ends_at'] == null
+                                          ? 'Direct Claim (Open)'
+                                          : 'Open for Bidding',
+                                      style: const TextStyle(
                                         color: Colors.purpleAccent,
                                         fontSize: 14,
                                         fontWeight: FontWeight.bold,
@@ -727,7 +739,7 @@ class _OrdersTabState extends State<OrdersTab> {
                                 ),
                               ),
                             // View Bids button
-                            if (isDeliveryOpen)
+                            if (isDeliveryOpen && order['delivery_bidding_ends_at'] != null)
                               Padding(
                                 padding: const EdgeInsets.only(
                                   top: 8,
@@ -1161,9 +1173,7 @@ class _OrdersTabState extends State<OrdersTab> {
     try {
       final now = DateTime.now();
       final nextUp = orders.firstWhere(
-        (o) =>
-            o['order_status'] == 'upcoming' &&
-            DateTime.parse(o['event_date']).isAfter(now),
+        (o) => o['order_status'] == 'upcoming',
       );
       nextUpId = nextUp['id'];
     } catch (_) {}
@@ -1352,6 +1362,13 @@ class _OrdersTabState extends State<OrdersTab> {
                           ),
                         ),
                         DropdownMenuItem(
+                          value: 'direct_claim',
+                          child: Text(
+                            'Fastest claim (Direct)',
+                            style: TextStyle(color: Colors.greenAccent),
+                          ),
+                        ),
+                        DropdownMenuItem(
                           value: 'open',
                           child: Text(
                             'Open for All (Bidding)',
@@ -1449,6 +1466,34 @@ class _OrdersTabState extends State<OrdersTab> {
                             ),
                           );
                         },
+                      ),
+                    ],
+                    if (assignmentType == 'open' || assignmentType == 'direct_claim') ...[
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Base Delivery Fare (₹):',
+                        style: TextStyle(color: Colors.white70, fontSize: 12),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: fareController,
+                        keyboardType: TextInputType.number,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: InputDecoration(
+                          hintText: 'e.g. 150',
+                          hintStyle:
+                              TextStyle(color: Colors.white.withOpacity(0.3)),
+                          filled: true,
+                          fillColor: Colors.white.withOpacity(0.05),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                          prefixIcon: const Icon(
+                            Icons.currency_rupee,
+                            color: Colors.white54,
+                          ),
+                        ),
                       ),
                     ],
                     if (assignmentType == 'open') ...[
@@ -1553,7 +1598,7 @@ class _OrdersTabState extends State<OrdersTab> {
                         'delivery_staff_id': assignmentType == 'specific'
                             ? selectedStaffId
                             : null,
-                        'is_delivery_open': assignmentType == 'open',
+                        'is_delivery_open': assignmentType == 'open' || assignmentType == 'direct_claim',
                         'delivery_fare': assignmentType == 'none' ? null : fare,
                         'delivery_bidding_ends_at': biddingEndsAt,
                       };

@@ -53,7 +53,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     }
 
     final emailRegExp = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
-    if (!emailRegExp.hasMatch(email)) {
+    if (email.isNotEmpty && !emailRegExp.hasMatch(email)) {
       setState(() => _emailError = 'Please enter a valid email address');
       isValid = false;
     }
@@ -95,8 +95,27 @@ class _SignUpScreenState extends State<SignUpScreen> {
     try {
       final supabase = Supabase.instance.client;
 
+      // Check if phone number is already registered
+      try {
+        final bool phoneExists = await supabase.rpc('check_phone_exists', params: {'p_phone': phone});
+        if (phoneExists) {
+          setState(() {
+            _phoneError = 'This phone number is already registered';
+            _loading = false;
+          });
+          return;
+        }
+      } catch (e) {
+        debugPrint('Phone check failed (DB migration might be missing): $e');
+        setState(() => _loading = false);
+        _toast('Database error! Did you run 22_check_phone_exists.sql?');
+        return;
+      }
+
+      final signupEmail = email.isEmpty ? '$phone@catering.app' : email;
+
       final res = await supabase.auth.signUp(
-        email: email,
+        email: signupEmail,
         password: password,
         data: {
           'full_name': fullName,
@@ -112,11 +131,39 @@ class _SignUpScreenState extends State<SignUpScreen> {
       }
 
       try {
+        // 1. Mark as online
         await supabase
             .from('profiles')
             .update({'is_online': true})
             .eq('id', res.user!.id);
-      } catch (_) {}
+            
+        // 2. Check for pre-approved invitations if joining as staff (or generally)
+        final invite = await supabase
+            .from('company_invitations')
+            .select('*')
+            .eq('phone', phone)
+            .maybeSingle();
+            
+        if (invite != null) {
+          // Auto-join the company
+          await supabase
+              .from('profiles')
+              .update({'company_id': invite['company_id']})
+              .eq('id', res.user!.id);
+              
+          // Remove the invitation now that it's processed
+          await supabase
+              .from('company_invitations')
+              .delete()
+              .eq('id', invite['id']);
+              
+          _toast('Account created! You were automatically added to your company.');
+          if (mounted) Navigator.pop(context);
+          return; // Skip the generic welcome toast
+        }
+      } catch (e) {
+        debugPrint('Post signup profile update error: $e');
+      }
 
       _toast('Account created! Welcome to the team.');
 
@@ -250,7 +297,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       const SizedBox(height: 24),
                       _buildTextField(
                         controller: _emailCtrl,
-                        label: 'Email Address',
+                        label: 'Email Address (Optional)',
                         icon: Icons.email_outlined,
                         keyboardType: TextInputType.emailAddress,
                         errorText: _emailError,

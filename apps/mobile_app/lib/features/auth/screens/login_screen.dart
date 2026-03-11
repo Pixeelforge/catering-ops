@@ -20,17 +20,22 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _error;
 
   Future<void> _login() async {
-    final email = _email.text.trim();
+    final input = _email.text.trim();
     final password = _password.text.trim();
 
-    if (email.isEmpty || password.isEmpty) {
-      setState(() => _error = "Email and password cannot be empty");
+    if (input.isEmpty || password.isEmpty) {
+      setState(() => _error = "Email/Phone and password cannot be empty");
       return;
     }
 
     final emailRegExp = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
-    if (!emailRegExp.hasMatch(email)) {
-      setState(() => _error = "Please enter a valid email address");
+    final phoneRegExp = RegExp(r'^\d{10}$');
+    
+    bool isPhone = phoneRegExp.hasMatch(input);
+    bool isEmail = emailRegExp.hasMatch(input);
+
+    if (!isEmail && !isPhone) {
+      setState(() => _error = "Please enter a valid email or 10-digit phone");
       return;
     }
 
@@ -40,7 +45,9 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      await _auth.signIn(_email.text.trim(), _password.text.trim());
+      // If user typed a phone number, append the dummy domain to login
+      final loginEmail = isPhone ? '$input@catering.app' : input;
+      await _auth.signIn(loginEmail, password);
 
       final user = Supabase.instance.client.auth.currentUser;
       if (user != null) {
@@ -158,8 +165,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     children: [
                       _buildTextField(
                         controller: _email,
-                        label: 'Email Address',
-                        icon: Icons.email_outlined,
+                        label: 'Email or Phone Number',
+                        icon: Icons.person_outline,
                         keyboardType: TextInputType.emailAddress,
                       ),
                       const SizedBox(height: 20),

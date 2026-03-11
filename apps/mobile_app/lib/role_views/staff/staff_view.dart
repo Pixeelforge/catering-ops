@@ -896,9 +896,32 @@ class _StaffViewState extends State<StaffView> {
             ),
           ),
           const SizedBox(height: 12),
-          // Show current bid amount if one exists
-          FutureBuilder<Map<String, dynamic>?>(
-            future: () async {
+          if (biddingEndsAt == null)
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => _claimDirectDelivery(order['id']),
+                icon: const Icon(Icons.bolt, color: Colors.black87),
+                label: Text(
+                  'Fast Claim for ₹${baseFare.toStringAsFixed(0)}',
+                  style: const TextStyle(
+                    color: Colors.black87,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.greenAccent,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+              ),
+            )
+          else
+            // Show current bid amount if one exists
+            FutureBuilder<Map<String, dynamic>?>(
+              future: () async {
               final user = supabase.auth.currentUser;
               if (user == null) return null;
               final res = await supabase
@@ -1119,6 +1142,32 @@ class _StaffViewState extends State<StaffView> {
       if (mounted) setState(() {}); // Refresh to show current bid
     } catch (e) {
       _showToast('Error placing bid: $e', Colors.redAccent);
+    }
+  }
+
+  Future<void> _claimDirectDelivery(String orderId) async {
+    final user = supabase.auth.currentUser;
+    if (user == null) return;
+
+    try {
+      final res = await supabase.rpc(
+        'claim_direct_delivery',
+        params: {'p_order_id': orderId},
+      );
+
+      if (res == true) {
+        _showToast('Successfully claimed! ✅', Colors.greenAccent);
+        _fetchAssignedOrders();
+      } else {
+        _showToast('Too slow! Order already claimed.', Colors.redAccent);
+        if (mounted) {
+          setState(() {
+            _dismissedOrders.add(orderId);
+          });
+        }
+      }
+    } catch (e) {
+      _showToast('Error claiming delivery: $e', Colors.redAccent);
     }
   }
 
@@ -1379,13 +1428,28 @@ class _StaffViewState extends State<StaffView> {
     if (mounted) setState(() => _loadingAssignedOrders = true);
 
     try {
-      // Always fetch orders assigned to this staff member
+      // Always fetch orders assigned to this staff member (upcoming and completed)
       final resAssigned = await supabase
           .from('orders')
           .select()
           .eq('delivery_staff_id', user.id)
-          .eq('order_status', 'upcoming')
-          .order('event_date');
+          .inFilter('order_status', ['upcoming', 'completed']);
+
+      final assignedList = List<Map<String, dynamic>>.from(resAssigned);
+      assignedList.sort((a, b) {
+        final aUpcoming = a['order_status'] == 'upcoming';
+        final bUpcoming = b['order_status'] == 'upcoming';
+        if (aUpcoming && !bUpcoming) return -1;
+        if (!aUpcoming && bUpcoming) return 1;
+        
+        final aDate = DateTime.parse(a['event_date']);
+        final bDate = DateTime.parse(b['event_date']);
+        if (aUpcoming) {
+          return aDate.compareTo(bDate); // soonest upcoming first
+        } else {
+          return bDate.compareTo(aDate); // most recent completed first
+        }
+      });
 
       // Only fetch open (claimable) orders if we know the company
       List<dynamic> resOpen = [];
@@ -1402,7 +1466,7 @@ class _StaffViewState extends State<StaffView> {
 
       if (mounted) {
         setState(() {
-          _assignedOrders = List<Map<String, dynamic>>.from(resAssigned);
+          _assignedOrders = assignedList;
           _openOrders = List<Map<String, dynamic>>.from(resOpen);
           _loadingAssignedOrders = false;
         });

@@ -369,75 +369,6 @@ class _OwnerViewState extends State<OwnerView> {
 
           const SizedBox(height: 30),
 
-          // Staff Management Action
-          InkWell(
-            onTap: () {
-              if (_companyId != null) {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        StaffManagementScreen(companyId: _companyId!),
-                  ),
-                );
-              }
-            },
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Colors.orangeAccent.withOpacity(0.15),
-                    Colors.orangeAccent.withOpacity(0.05),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.orangeAccent.withOpacity(0.2)),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.orangeAccent.withOpacity(0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.people_alt_rounded,
-                      color: Colors.orangeAccent,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Manage Staff',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                        Text(
-                          'View and manage your team members',
-                          style: TextStyle(color: Colors.white54, fontSize: 13),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Icon(
-                    Icons.arrow_forward_ios_rounded,
-                    color: Colors.white24,
-                    size: 16,
-                  ),
-                ],
-              ),
-            ),
-          ),
-
           const SizedBox(height: 30),
 
           // Manage Middlemen Action
@@ -561,7 +492,7 @@ class _OwnerViewState extends State<OwnerView> {
               key: ValueKey(_pendingCount),
               onRequestHandled: _fetchRequestCount,
             )
-          : KaathaScreen(companyId: _companyId ?? ''),
+          : StaffManagementScreen(companyId: _companyId ?? ''),
       bottomNavigationBar: BottomNavigationBar(
         backgroundColor: const Color(0xFF161626),
         selectedItemColor: Colors.orangeAccent,
@@ -596,9 +527,9 @@ class _OwnerViewState extends State<OwnerView> {
             label: 'Requests',
           ),
           const BottomNavigationBarItem(
-            icon: Icon(Icons.account_balance_wallet_outlined),
-            activeIcon: Icon(Icons.account_balance_wallet),
-            label: 'Khata',
+            icon: Icon(Icons.people_alt_outlined),
+            activeIcon: Icon(Icons.people_alt),
+            label: 'Staff',
           ),
         ],
       ),

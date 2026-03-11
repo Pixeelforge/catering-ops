@@ -86,17 +86,10 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
+        automaticallyImplyLeading: false,
         title: const Text(
           'Our Team',
           style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
-        ),
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new,
-            size: 20,
-            color: Colors.white,
-          ),
-          onPressed: () => Navigator.pop(context),
         ),
       ),
       body: _loading

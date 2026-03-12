@@ -716,9 +716,12 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
         'total_value': totalValue,
         'payment_status': _paymentStatus,
         'order_status': 'upcoming',
+        'is_khata_saved': (_orderType == 'middleman' &&
+            _selectedMiddleMan != null &&
+            _paymentStatus == 'pending'),
       });
 
-      // Auto-save to Khata if middleman order is pending payment
+      // Auto-save to Kaatha if middleman order is pending payment
       if (_orderType == 'middleman' &&
           _selectedMiddleMan != null &&
           _paymentStatus == 'pending') {
@@ -1392,7 +1395,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                               ),
                               const SizedBox(width: 8),
                               Text(
-                                'Current Khata: ₹${(_selectedMiddleMan?['total_balance'] as num?)?.toStringAsFixed(0) ?? '0'}',
+                                'Current Kaatha: ₹${(_selectedMiddleMan?['total_balance'] as num?)?.toStringAsFixed(0) ?? '0'}',
                                 style: const TextStyle(
                                   color: Colors.amber,
                                   fontSize: 13,
@@ -1427,7 +1430,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                             SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                'Will auto-add to Khata (pending payment)',
+                                'Will auto-add to Kaatha (pending payment)',
                                 style: TextStyle(
                                   color: Colors.greenAccent,
                                   fontSize: 12,

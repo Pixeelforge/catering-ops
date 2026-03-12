@@ -516,7 +516,7 @@ class _OwnerViewState extends State<OwnerView> {
                           ),
                         ),
                         Text(
-                          'Khata ledger & middleman accounts',
+                          'Kaatha ledger & middleman accounts',
                           style: TextStyle(color: Colors.white54, fontSize: 13),
                         ),
                       ],

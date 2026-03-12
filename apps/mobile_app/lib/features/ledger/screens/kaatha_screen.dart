@@ -172,7 +172,7 @@ class _KaathaScreenState extends State<KaathaScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('$manName removed from Khata'),
+            content: Text('$manName removed from Kaatha'),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -825,7 +825,7 @@ class _KaathaScreenState extends State<KaathaScreen> {
                             final res = await _supabase
                                 .from('orders')
                                 .select(
-                                  'id, client_name, total_value, payment_status, event_date',
+                                  'id, client_name, total_value, payment_status, event_date, menu_items',
                                 )
                                 .eq('company_id', widget.companyId)
                                 .eq('middleman_tag', tag)
@@ -942,6 +942,34 @@ class _KaathaScreenState extends State<KaathaScreen> {
                                                     fontSize: 11,
                                                   ),
                                                 ),
+                                                // Display Menu Items
+                                                if (order['menu_items'] != null) ...[
+                                                  const SizedBox(height: 4),
+                                                  Wrap(
+                                                    spacing: 4,
+                                                    runSpacing: 4,
+                                                    children: (order['menu_items'] as List)
+                                                        .map((item) {
+                                                      return Container(
+                                                        padding: const EdgeInsets.symmetric(
+                                                          horizontal: 6,
+                                                          vertical: 2,
+                                                        ),
+                                                        decoration: BoxDecoration(
+                                                          color: Colors.white.withOpacity(0.05),
+                                                          borderRadius: BorderRadius.circular(4),
+                                                        ),
+                                                        child: Text(
+                                                          "${item['quantity']}x ${item['name']}",
+                                                          style: const TextStyle(
+                                                            color: Colors.orangeAccent,
+                                                            fontSize: 9,
+                                                          ),
+                                                        ),
+                                                      );
+                                                    }).toList(),
+                                                  ),
+                                                ],
                                             ],
                                           ),
                                         ),

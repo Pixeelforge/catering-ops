@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:geolocator/geolocator.dart';
 import 'create_order_screen.dart';
 import 'bids_screen.dart';
 
@@ -91,6 +92,208 @@ class _OrdersTabState extends State<OrdersTab> {
       _toast('Error: $e');
     }
   }
+
+  Future<void> _shareToWhatsApp(Map<String, dynamic> order, String phone) async {
+    // Format phone (remove spaces, add +91 if 10 digits)
+    String formattedPhone = phone.replaceAll(RegExp(r'\D'), '');
+    if (formattedPhone.length == 10) {
+      formattedPhone = '+91$formattedPhone';
+    } else if (!formattedPhone.startsWith('+')) {
+      formattedPhone = '+$formattedPhone'; // basic fallback
+    }
+
+    // Format Date
+    String dateStr = 'TBD';
+    if (order['event_date'] != null) {
+      final date = DateTime.parse(order['event_date']).toLocal();
+      dateStr = DateFormat('MMM dd, yyyy').format(date);
+    }
+
+    // Format Time
+    String timeStr = 'TBD';
+    if (order['event_time'] != null) {
+      try {
+        final timeParts = order['event_time'].toString().split(':');
+        if (timeParts.length >= 2) {
+          final now = DateTime.now();
+          final time = DateTime(now.year, now.month, now.day, int.parse(timeParts[0]), int.parse(timeParts[1]));
+          timeStr = DateFormat('h:mm a').format(time);
+        } else {
+          timeStr = order['event_time'];
+        }
+      } catch (e) {
+        timeStr = order['event_time'];
+      }
+    }
+
+    final List<dynamic> menuItems = order['menu_items'] ?? [];
+    String menuDetails = '';
+    if (menuItems.isNotEmpty) {
+      menuDetails = '\n\n*Detailed Menu:*\n' + menuItems.map((item) {
+        final qty = (item['quantity_type'] == 'persons')
+            ? 'For ${item['quantity']} Persons'
+            : '${item['quantity']}x';
+        return '• $qty ${item['name']}';
+      }).join('\n');
+    }
+
+    final String message = '''
+🚀 *NEW DELIVERY ASSIGNMENT*
+
+👤 *Client:* ${order['client_name'] ?? 'N/A'}
+📅 *Date:* $dateStr
+⌚ *Time:* $timeStr
+📍 *Location:* ${order['venue_address'] ?? 'N/A'}
+👥 *Guests:* ${order['guest_count'] ?? 'N/A'}
+💰 *Fare:* ₹${order['delivery_fare'] ?? 'N/A'}$menuDetails
+
+*Instructions:* Please reach the venue 15 mins before time.
+
+_Sent via Catering Ops_
+''';
+
+    final encodedMsg = Uri.encodeComponent(message);
+    final url = Uri.parse('whatsapp://send?phone=$formattedPhone&text=$encodedMsg');
+
+    try {
+      if (await canLaunchUrl(url)) {
+        await launchUrl(url);
+      } else {
+        // Fallback to web URL if app is not installed
+        final webUrl = Uri.parse('https://wa.me/${formattedPhone.replaceAll('+', '')}?text=$encodedMsg');
+        if (await canLaunchUrl(webUrl)) {
+          await launchUrl(webUrl, mode: LaunchMode.externalApplication);
+        } else {
+          _toast('Could not open WhatsApp');
+        }
+      }
+    } catch (e) {
+      _toast('Error launching WhatsApp: $e');
+    }
+  }
+
+  Future<void> _shareLocationWithMiddleman(String? middlemanTag, {String? staffId}) async {
+    if (middlemanTag == null || middlemanTag.isEmpty) {
+      _toast('No middleman associated with this order');
+      return;
+    }
+
+    // Extract phone number
+    final regExp = RegExp(r'\((.*?)\)');
+    final match = regExp.firstMatch(middlemanTag);
+    final phoneNumber = match?.group(1)?.replaceAll(RegExp(r'[^\d+]'), '') ?? '';
+
+    if (phoneNumber.isEmpty) {
+      _toast('Could not find middleman phone number');
+      return;
+    }
+
+    try {
+      String locationUrl = '';
+      String messagePrefix = 'Hi';
+      
+      // Try to get staff location if staffId is provided
+      if (staffId != null) {
+        final staffProfile = await _supabase
+            .from('profiles')
+            .select('full_name, last_latitude, last_longitude, location_updated_at')
+            .eq('id', staffId)
+            .maybeSingle();
+            
+        if (staffProfile != null && staffProfile['last_latitude'] != null) {
+          final lat = staffProfile['last_latitude'];
+          final lng = staffProfile['last_longitude'];
+          final staffName = staffProfile['full_name'] ?? 'Staff';
+          locationUrl = 'https://www.google.com/maps/search/?api=1&query=$lat,$lng';
+          messagePrefix = 'Hi, I am the owner. Here is the live location of our delivery staff ($staffName)';
+        }
+      }
+
+      // Fallback to owner's own location if staff location not available
+      if (locationUrl.isEmpty) {
+        bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+        if (!serviceEnabled) {
+          _toast('Staff location not available & your location services are disabled');
+          return;
+        }
+
+        LocationPermission permission = await Geolocator.checkPermission();
+        if (permission == LocationPermission.denied) {
+          permission = await Geolocator.requestPermission();
+          if (permission == LocationPermission.denied) {
+            _toast('Location permissions are denied');
+            return;
+          }
+        }
+
+        _toast('Getting your location (Staff location not available)...');
+        Position position = await Geolocator.getCurrentPosition();
+        locationUrl = 'https://www.google.com/maps/search/?api=1&query=${position.latitude},${position.longitude}';
+        messagePrefix = 'Hi, I am the owner. Here is my current location';
+      }
+      
+      final String message = Uri.encodeComponent('$messagePrefix: $locationUrl');
+      final Uri whatsappUrl = Uri.parse('whatsapp://send?phone=$phoneNumber&text=$message');
+
+      if (await canLaunchUrl(whatsappUrl)) {
+        await launchUrl(whatsappUrl);
+      } else {
+        final Uri webWhatsapp = Uri.parse('https://wa.me/$phoneNumber?text=$message');
+        await launchUrl(webWhatsapp, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      _toast('Error sharing location: $e');
+    }
+  }
+
+  Future<void> _openMaps(String address) async {
+    final cleanAddress = address.trim();
+    if (cleanAddress.isEmpty) return;
+
+    // Smart Link Detection: Check for full URLs or common map domains
+    final isUrl = cleanAddress.startsWith('http://') || 
+                  cleanAddress.startsWith('https://') ||
+                  cleanAddress.contains('maps.app.goo.gl') ||
+                  cleanAddress.contains('goo.gl/maps') ||
+                  cleanAddress.contains('maps.google.com');
+
+    if (isUrl) {
+      // Add protocol if missing
+      String urlString = cleanAddress;
+      if (!urlString.startsWith('http')) {
+        urlString = 'https://$urlString';
+      }
+      
+      final Uri url = Uri.parse(urlString);
+      try {
+        if (await canLaunchUrl(url)) {
+          await launchUrl(url, mode: LaunchMode.externalApplication);
+          return;
+        }
+      } catch (e) {
+        debugPrint('Error launching direction URL: $e');
+      }
+    }
+
+    // Fallback: search-based deep linking for plain text names/addresses
+    final encodedAddress = Uri.encodeComponent(cleanAddress);
+    final Uri googleMapsWebUrl = Uri.parse('https://www.google.com/maps/search/?api=1&query=$encodedAddress');
+    final Uri googleMapsNativeUrl = Uri.parse('google.navigation:q=$encodedAddress');
+    final Uri appleMapsNativeUrl = Uri.parse('apple-maps://?daddr=$encodedAddress');
+
+    try {
+      if (await canLaunchUrl(googleMapsNativeUrl)) {
+        await launchUrl(googleMapsNativeUrl, mode: LaunchMode.externalApplication);
+      } else if (await canLaunchUrl(appleMapsNativeUrl)) {
+        await launchUrl(appleMapsNativeUrl, mode: LaunchMode.externalApplication);
+      } else {
+        await launchUrl(googleMapsWebUrl, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      _toast('Could not open Maps: $e');
+    }
+  }
+
 
   RealtimeChannel? _ordersSubscription;
   Timer? _countdownTimer;
@@ -253,6 +456,37 @@ class _OrdersTabState extends State<OrdersTab> {
 
   Future<void> _deleteOrder(String id) async {
     try {
+      // Find the order locally first to check Kaatha status
+      final orderIndex = _allOrders.indexWhere((o) => o['id'] == id);
+      if (orderIndex != -1) {
+        final order = _allOrders[orderIndex];
+        final bool isSavedToKaatha = order['is_khata_saved'] == true;
+        final String? tag = order['middleman_tag'];
+        final double amount = (order['total_value'] as num?)?.toDouble() ?? 0.0;
+
+        if (isSavedToKaatha && tag != null && tag.contains(' (')) {
+          // Revert the middleman's balance
+          final nameEnd = tag.lastIndexOf(' (');
+          final phone = tag.substring(nameEnd + 2, tag.length - 1);
+
+          final middleMan = await _supabase
+              .from('middle_men')
+              .select('id, total_balance')
+              .eq('company_id', widget.companyId)
+              .eq('phone_number', phone)
+              .maybeSingle();
+
+          if (middleMan != null) {
+            final double currentBalance =
+                (middleMan['total_balance'] as num?)?.toDouble() ?? 0.0;
+            await _supabase
+                .from('middle_men')
+                .update({'total_balance': currentBalance - amount})
+                .eq('id', middleMan['id']);
+          }
+        }
+      }
+
       await _supabase.from('orders').delete().eq('id', id);
       _toast('Order deleted');
       if (mounted) {
@@ -273,7 +507,7 @@ class _OrdersTabState extends State<OrdersTab> {
     }
   }
 
-  Future<void> _shareToWhatsApp(
+  Future<void> _shareOrderToStaffViaWhatsApp(
     Map<String, dynamic> order,
     String? staffId,
   ) async {
@@ -377,7 +611,6 @@ class _OrdersTabState extends State<OrdersTab> {
     final bool isPaid = order['payment_status'] == 'paid';
     final bool isCompleted = order['order_status'] == 'completed';
     final String? middlemanTag = order['middleman_tag'];
-    final bool isKhataSaved = order['is_khata_saved'] == true;
     final String? deliveryStaffId = order['delivery_staff_id'];
     final bool isDeliveryOpen = order['is_delivery_open'] == true;
     final String? deliverySignature = order['delivery_signature'];
@@ -395,7 +628,7 @@ class _OrdersTabState extends State<OrdersTab> {
 
     return Dismissible(
       key: Key(order['id']),
-      direction: DismissDirection.endToStart,
+      direction: isDelivered ? DismissDirection.none : DismissDirection.endToStart,
       confirmDismiss: (direction) async {
         return await showDialog(
           context: context,
@@ -756,6 +989,166 @@ class _OrdersTabState extends State<OrdersTab> {
                                   ),
                                 ),
                               ),
+                            if (!isDelivered && 
+                                order['venue_address'] != null &&
+                                order['venue_address']
+                                    .toString()
+                                    .trim()
+                                    .isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  top: 4,
+                                  left: 22,
+                                  bottom: 8,
+                                  right: 16,
+                                ),
+                                child: GestureDetector(
+                                  onTap: isDelivered ? null : () =>
+                                      _openMaps(order['venue_address']),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 6,
+                                      horizontal: 12,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.blueAccent.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color:
+                                            Colors.blueAccent.withOpacity(0.3),
+                                      ),
+                                    ),
+                                    child: const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.map_outlined,
+                                          color: Colors.blueAccent,
+                                          size: 14,
+                                        ),
+                                        SizedBox(width: 8),
+                                        Text(
+                                          'View Venue on Map',
+                                          style: TextStyle(
+                                            color: Colors.blueAccent,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            if (!isDelivered && 
+                                middlemanTag != null && middlemanTag.contains('('))
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  top: 4,
+                                  left: 22,
+                                  bottom: 8,
+                                  right: 16,
+                                ),
+                                child: GestureDetector(
+                                  onTap: isDelivered ? null : () => _shareLocationWithMiddleman(middlemanTag, staffId: deliveryStaffId),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 6,
+                                      horizontal: 12,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.greenAccent.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: Colors.greenAccent.withOpacity(0.3),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(
+                                          Icons.share_location,
+                                          color: Colors.greenAccent,
+                                          size: 14,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          deliveryStaffId != null 
+                                            ? 'Share Staff Location with Middleman'
+                                            : 'Share My Location with Middleman',
+                                          style: const TextStyle(
+                                            color: Colors.greenAccent,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+
+                            // NEW ACCESSIBLE WHATSAPP SHARE BUTTON BAR
+                            if (!isDelivered && !isDeliveryOpen && deliveryStaffId != null)
+                              FutureBuilder(
+                                future: _supabase
+                                    .from('profiles')
+                                    .select('phone')
+                                    .eq('id', deliveryStaffId)
+                                    .maybeSingle(),
+                                builder: (context, snapshot) {
+                                  final phone = snapshot.data?['phone'];
+                                  if (phone == null)
+                                    return const SizedBox.shrink();
+
+                                  return Padding(
+                                    padding: const EdgeInsets.only(
+                                      top: 4,
+                                      left: 22,
+                                      bottom: 12,
+                                      right: 16,
+                                    ),
+                                    child: GestureDetector(
+                                      onTap: isDelivered ? null : () => _shareToWhatsApp(
+                                          order, phone.toString()),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 8,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.green.withOpacity(0.15),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                          border: Border.all(
+                                            color:
+                                                Colors.green.withOpacity(0.5),
+                                          ),
+                                        ),
+                                        child: const Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Icon(
+                                              Icons.wechat,
+                                              color: Colors.greenAccent,
+                                              size: 18,
+                                            ),
+                                            SizedBox(width: 8),
+                                            Text(
+                                              'Share Details via WhatsApp',
+                                              style: TextStyle(
+                                                color: Colors.greenAccent,
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
                             if (isDeliveryOpen &&
                                 order['delivery_bidding_ends_at'] != null)
                               Padding(
@@ -798,14 +1191,15 @@ class _OrdersTabState extends State<OrdersTab> {
                                 ),
                               ),
                             // View Bids button
-                            if (isDeliveryOpen)
+                            if (!isDelivered && isDeliveryOpen &&
+                                order['delivery_bidding_ends_at'] != null)
                               Padding(
                                 padding: const EdgeInsets.only(
                                   top: 8,
                                   left: 22,
                                 ),
                                 child: GestureDetector(
-                                  onTap: () {
+                                  onTap: isDelivered ? null : () {
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(
@@ -1059,8 +1453,7 @@ class _OrdersTabState extends State<OrdersTab> {
                               child: SizedBox(
                                 width: double.infinity,
                                 child: ElevatedButton.icon(
-                                  onPressed:
-                                      (isDeliveryOpen ||
+                                  onPressed: (isDeliveryOpen ||
                                           isDelivered ||
                                           deliveryStaffId != null)
                                       ? null
@@ -1117,7 +1510,7 @@ class _OrdersTabState extends State<OrdersTab> {
                                 width: double.infinity,
                                 child: ElevatedButton.icon(
                                   onPressed: () =>
-                                      _shareToWhatsApp(order, deliveryStaffId),
+                                      _shareOrderToStaffViaWhatsApp(order, deliveryStaffId),
                                   icon: const Icon(
                                     Icons.chat,
                                     color: Colors.white,
@@ -1133,56 +1526,6 @@ class _OrdersTabState extends State<OrdersTab> {
                                   ),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: const Color(0xFF25D366),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 12,
-                                    ),
-                                    elevation: 0,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          // Send to Khata — disabled while bidding is active
-                          if (middlemanTag != null && middlemanTag.isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton.icon(
-                                  onPressed:
-                                      (isKhataSaved ||
-                                          isDeliveryOpen ||
-                                          deliveryStaffId != null)
-                                      ? null
-                                      : () => _sendToKhata(
-                                          order['id'],
-                                          middlemanTag,
-                                          totalValue,
-                                          isKhataSaved,
-                                        ),
-                                  icon: Icon(
-                                    isKhataSaved
-                                        ? Icons.check_circle
-                                        : Icons.person_pin_circle_outlined,
-                                    color: Colors.white,
-                                    size: 18,
-                                  ),
-                                  label: Text(
-                                    isKhataSaved
-                                        ? 'Saved to $middlemanTag\'s Khata'
-                                        : 'Send to $middlemanTag\'s Khata',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: isKhataSaved
-                                        ? Colors.grey
-                                        : const Color(0xFF2E7D32),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(12),
                                     ),
@@ -1233,37 +1576,37 @@ class _OrdersTabState extends State<OrdersTab> {
                                         ),
                                       ),
                                       ElevatedButton(
-                                        onPressed: () =>
-                                            Navigator.pop(context, true),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.redAccent,
+                                          onPressed: () =>
+                                              Navigator.pop(context, true),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.redAccent,
+                                          ),
+                                          child: const Text(
+                                            'Delete',
+                                            style: TextStyle(color: Colors.white),
+                                          ),
                                         ),
-                                        child: const Text(
-                                          'Delete',
-                                          style: TextStyle(color: Colors.white),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                                if (confirm == true) {
-                                  _deleteOrder(order['id']);
-                                }
-                              },
-                              icon: const Icon(
-                                Icons.delete_outline,
-                                color: Colors.redAccent,
-                                size: 18,
-                              ),
-                              label: const Text(
-                                'Delete Order',
-                                style: TextStyle(
+                                      ],
+                                    ),
+                                  );
+                                  if (confirm == true) {
+                                    _deleteOrder(order['id']);
+                                  }
+                                },
+                                icon: const Icon(
+                                  Icons.delete_outline,
                                   color: Colors.redAccent,
-                                  fontWeight: FontWeight.bold,
+                                  size: 18,
+                                ),
+                                label: const Text(
+                                  'Delete Order',
+                                  style: TextStyle(
+                                    color: Colors.redAccent,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
                         ],
                       ),
                     ),

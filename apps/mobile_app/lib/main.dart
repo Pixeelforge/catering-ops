@@ -11,11 +11,18 @@ import 'core/env.dart';
 void main() async {
   try {
     WidgetsFlutterBinding.ensureInitialized();
-    await dotenv.load(fileName: "assets/.env");
+    await dotenv.load(fileName: "assets/env_config");
+
+    final url = dotenv.env['SUPABASE_URL'];
+    final anonKey = dotenv.env['SUPABASE_ANON_KEY'];
+
+    if (url == null || anonKey == null) {
+      throw Exception('Missing SUPABASE_URL or SUPABASE_ANON_KEY in env_config');
+    }
 
     await Supabase.initialize(
-      url: Env.supabaseUrl,
-      anonKey: Env.supabaseAnonKey,
+      url: url,
+      anonKey: anonKey,
     );
 
     runApp(const MyApp());

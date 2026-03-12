@@ -103,10 +103,10 @@ class _OwnerViewState extends State<OwnerView> {
     try {
       final res = await supabase
           .from('company_join_requests')
-          .select('id', const FetchOptions(count: CountOption.exact))
+          .select('id')
           .eq('status', 'pending')
           .eq('company_id', _companyId!);
-      if (mounted) setState(() => _pendingCount = res.count);
+      if (mounted) setState(() => _pendingCount = res.length);
     } catch (_) {}
   }
 
@@ -115,9 +115,9 @@ class _OwnerViewState extends State<OwnerView> {
     try {
       final res = await supabase
           .from('notifications')
-          .select('id', const FetchOptions(count: CountOption.exact))
+          .select('id')
           .eq('is_read', false);
-      if (mounted) setState(() => _unreadNotificationsCount = res.count);
+      if (mounted) setState(() => _unreadNotificationsCount = res.length);
     } catch (_) {}
   }
 

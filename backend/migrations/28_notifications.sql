@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS public.notifications (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 🔹 2. ENABLE RLS
+-- 🔹 2. ENABLE RLSalri
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 
 -- 🔹 3. RLS POLICIES

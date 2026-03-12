@@ -61,13 +61,25 @@ class _OrdersTabState extends State<OrdersTab> {
       }
     }
 
+    // Format Menu Items
+    String itemsStr = '';
+    final List<dynamic> menuItems = order['menu_items'] ?? [];
+    if (menuItems.isNotEmpty) {
+      itemsStr = '\n🍴 *Menu Items:*\n';
+      for (var item in menuItems) {
+        final qty = item['quantity'] ?? 1;
+        final type = item['quantity_type'] == 'persons' ? 'Persons' : 'x';
+        itemsStr += '• ${item['name']} ($qty $type)\n';
+      }
+    }
+
     final String message = '''
 Hello! Here are the delivery details for your upcoming order:
 👤 Client: ${order['client_name'] ?? 'N/A'}
 📅 Date: $dateStr
 ⌚ Time: $timeStr
 📍 Location: ${order['venue_address'] ?? 'N/A'}
-👥 Guests: ${order['guest_count'] ?? 'N/A'}
+👥 Guests: ${order['guest_count'] ?? 'N/A'}$itemsStr
 ₹ Fare: ₹${order['delivery_fare'] ?? 'N/A'}
 
 Please ensure timely delivery!
@@ -443,12 +455,19 @@ Please ensure timely delivery!
     return orders;
   }
 
-  Future<void> _updatePaymentStatus(String id, String newStatus) async {
+  Future<void> _updatePaymentStatus(Map<String, dynamic> order, String newStatus) async {
     try {
+      final updates = {
+        'payment_status': newStatus,
+      };
+      if (newStatus == 'paid') {
+        updates['paid_amount'] = order['total_value'];
+      }
+      
       await _supabase
           .from('orders')
-          .update({'payment_status': newStatus})
-          .eq('id', id);
+          .update(updates)
+          .eq('id', order['id']);
     } catch (e) {
       _toast('Error updating payment: $e');
     }
@@ -733,7 +752,7 @@ Please ensure timely delivery!
                         ),
                         InkWell(
                           onTap: () => _updatePaymentStatus(
-                            order['id'],
+                            order,
                             isPaid ? 'pending' : 'paid',
                           ),
                           child: Container(
@@ -939,6 +958,8 @@ Please ensure timely delivery!
                                   ),
                                 ),
                               ),
+
+                            // Share Location Button
                             if (!isDelivered && middlemanTag != null && middlemanTag.contains('('))
                               Padding(
                                 padding: const EdgeInsets.only(
@@ -948,32 +969,36 @@ Please ensure timely delivery!
                                   right: 16,
                                 ),
                                 child: GestureDetector(
-                                  onTap: () => _shareLocationWithMiddleman(middlemanTag, staffId: deliveryStaffId),
+                                  onTap: () => _shareLocationWithMiddleman(
+                                      middlemanTag,
+                                      staffId: deliveryStaffId),
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(
                                       vertical: 6,
                                       horizontal: 12,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: Colors.greenAccent.withOpacity(0.1),
+                                      color:
+                                          Colors.greenAccent.withOpacity(0.1),
                                       borderRadius: BorderRadius.circular(8),
                                       border: Border.all(
-                                        color: Colors.greenAccent.withOpacity(0.3),
+                                        color: Colors.greenAccent
+                                            .withOpacity(0.3),
                                       ),
                                     ),
                                     child: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        Icon(
+                                        const Icon(
                                           Icons.share_location,
                                           color: Colors.greenAccent,
                                           size: 14,
                                         ),
-                                        SizedBox(width: 8),
+                                        const SizedBox(width: 8),
                                         Text(
-                                          deliveryStaffId != null 
-                                            ? 'Share Staff Location with Middleman'
-                                            : 'Share My Location with Middleman',
+                                          deliveryStaffId != null
+                                              ? 'Share Staff Location with Middleman'
+                                              : 'Share My Location with Middleman',
                                           style: const TextStyle(
                                             color: Colors.greenAccent,
                                             fontSize: 12,
@@ -984,8 +1009,12 @@ Please ensure timely delivery!
                                     ),
                                   ),
                                 ),
-                              ), // NEW ACCESSIBLE WHATSAPP SHARE BUTTON BAR
-                            if (!isDelivered && !isDeliveryOpen && deliveryStaffId != null)
+                              ),
+
+                            // WhatsApp Sharing
+                            if (!isDelivered &&
+                                !isDeliveryOpen &&
+                                deliveryStaffId != null)
                               FutureBuilder(
                                 future: _supabase
                                     .from('profiles')
@@ -996,7 +1025,7 @@ Please ensure timely delivery!
                                   final phone = snapshot.data?['phone'];
                                   if (phone == null)
                                     return const SizedBox.shrink();
- 
+
                                   return Padding(
                                     padding: const EdgeInsets.only(
                                       top: 4,
@@ -1382,53 +1411,6 @@ Please ensure timely delivery!
                                     backgroundColor: isDeliveryOpen
                                         ? Colors.white.withOpacity(0.05)
                                         : const Color(0xFFD4A237),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 12,
-                                    ),
-                                    elevation: 0,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          // Send to Khata — disabled while bidding is active or delivered
-                          if (!isDelivered && middlemanTag != null && middlemanTag.isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton.icon(
-                                  onPressed: (isKhataSaved || isDeliveryOpen)
-                                      ? null
-                                      : () => _sendToKhata(
-                                          order['id'],
-                                          middlemanTag,
-                                          totalValue,
-                                          isKhataSaved,
-                                        ),
-                                  icon: Icon(
-                                    isKhataSaved
-                                        ? Icons.check_circle
-                                        : Icons.person_pin_circle_outlined,
-                                    color: Colors.white,
-                                    size: 18,
-                                  ),
-                                  label: Text(
-                                    isKhataSaved
-                                        ? 'Saved to $middlemanTag\'s Khata'
-                                        : 'Send to $middlemanTag\'s Khata',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: isKhataSaved
-                                        ? Colors.grey
-                                        : const Color(0xFF2E7D32),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(12),
                                     ),

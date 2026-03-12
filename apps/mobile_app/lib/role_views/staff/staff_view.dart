@@ -1629,7 +1629,8 @@ class _StaffViewState extends State<StaffView> {
             ],
           ),
           if (order['order_status'] != 'completed') ...[
-            if (order['venue_address'] != null && order['venue_address'].toString().trim().isNotEmpty) ...[
+            if (order['venue_address'] != null &&
+                order['venue_address'].toString().trim().isNotEmpty) ...[
               const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
@@ -1647,18 +1648,21 @@ class _StaffViewState extends State<StaffView> {
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
-                      side: BorderSide(color: Colors.blueAccent.withOpacity(0.5)),
+                      side: BorderSide(
+                          color: Colors.blueAccent.withOpacity(0.5)),
                     ),
                   ),
                 ),
               ),
             ],
-            if (order['middleman_tag'] != null && order['middleman_tag'].toString().contains('(')) ...[
+            if (order['middleman_tag'] != null &&
+                order['middleman_tag'].toString().contains('(')) ...[
               const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: () => _shareLocationWithMiddleman(order['middleman_tag']),
+                  onPressed: () =>
+                      _shareLocationWithMiddleman(order['middleman_tag']),
                   icon: const Icon(Icons.share_location, size: 18),
                   label: const Text(
                     'Share My Location with Middleman',
@@ -1671,84 +1675,63 @@ class _StaffViewState extends State<StaffView> {
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
-                      side: BorderSide(color: Colors.greenAccent.withOpacity(0.5)),
+                      side: BorderSide(
+                          color: Colors.greenAccent.withOpacity(0.5)),
                     ),
                   ),
                 ),
               ),
             ],
-          ],
-          const SizedBox(height: 12),
-          const Divider(color: Colors.white10),
-          const SizedBox(height: 8),
-          const Text(
-            'Order Items:',
-            style: TextStyle(color: Colors.white54, fontSize: 12),
-          ),
-          const SizedBox(height: 4),
-          ...(order['menu_items'] as List? ?? []).map((item) {
-            return Row(
-              children: [
-                const Text('• ', style: TextStyle(color: Colors.orangeAccent)),
-                Text(
-                  '${item['quantity']}x ${item['name']}',
-                  style: const TextStyle(color: Colors.white70, fontSize: 13),
-                ),
-              ],
-            );
-          }).toList(),
-          const SizedBox(height: 12),
-          // Confirm Delivery button or delivered badge
-          if (order['delivery_signature'] == null)
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () => _confirmDelivery(order),
-                icon: const Icon(
-                  Icons.draw_outlined,
-                  color: Colors.black87,
-                  size: 18,
-                ),
-                label: const Text(
-                  'Order Delivered (Get Signature)',
-                  style: TextStyle(
-                    color: Colors.black87,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.greenAccent,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  elevation: 0,
-                ),
-              ),
-            )
-          else
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.greenAccent.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.greenAccent.withOpacity(0.3)),
-              ),
-              child: const Row(
+            const SizedBox(height: 12),
+            const Divider(color: Colors.white10),
+            const SizedBox(height: 8),
+            const Text(
+              'Order Items:',
+              style: TextStyle(color: Colors.white54, fontSize: 12),
+            ),
+            const SizedBox(height: 4),
+            ...(order['menu_items'] as List? ?? []).map((item) {
+              return Row(
                 children: [
-                  Icon(Icons.verified, color: Colors.greenAccent, size: 16),
-                  SizedBox(width: 8),
+                  const Text('• ',
+                      style: TextStyle(color: Colors.orangeAccent)),
                   Text(
-                    '✅ Delivery confirmed & signed',
-                    style: TextStyle(
-                      color: Colors.greenAccent,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    '${item['quantity']}x ${item['name']}',
+                    style: const TextStyle(color: Colors.white70, fontSize: 13),
                   ),
                 ],
+              );
+            }).toList(),
+            const SizedBox(height: 12),
+            if (order['delivery_signature'] == null)
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => _confirmDelivery(order),
+                  icon: const Icon(
+                    Icons.draw_outlined,
+                    color: Colors.black87,
+                    size: 18,
+                  ),
+                  label: const Text(
+                    'Order Delivered (Get Signature)',
+                    style: TextStyle(
+                      color: Colors.black87,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.greenAccent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    elevation: 0,
+                  ),
+                ),
               ),
-            ),
+          ],
         ],
       ),
     );

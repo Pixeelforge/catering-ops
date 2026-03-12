@@ -719,6 +719,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
         'total_value': totalValue,
         'payment_status': _paymentStatus,
         'order_status': 'upcoming',
+        'is_khata_saved': _orderType == 'middleman' && _selectedMiddleMan != null,
       });
 
       // Auto-save to Khata if middleman order is pending payment

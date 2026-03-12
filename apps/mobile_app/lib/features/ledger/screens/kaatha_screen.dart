@@ -230,169 +230,232 @@ class _KaathaScreenState extends State<KaathaScreen> {
 
   Future<void> _recordPayment(int index) async {
     final man = _middleMen[index];
-    final controller = TextEditingController();
+    final amountController = TextEditingController();
+    final tag = '${man['name']} (${man['phone_number']})';
 
-    final amount = await showDialog<double>(
+    // 1. Fetch pending orders for this middleman
+    final List<Map<String, dynamic>> pendingOrders;
+    try {
+      final res = await _supabase
+          .from('orders')
+          .select('id, client_name, total_value, paid_amount, event_date')
+          .eq('company_id', widget.companyId)
+          .eq('middleman_tag', tag)
+          .eq('payment_status', 'pending');
+      pendingOrders = List<Map<String, dynamic>>.from(res);
+    } catch (e) {
+      _toast('Error fetching orders: $e');
+      return;
+    }
+
+    if (pendingOrders.isEmpty) {
+      _toast('No pending orders found for this middleman');
+      return;
+    }
+
+    Map<String, dynamic>? selectedOrder;
+    double? amount;
+
+    final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A2E),
-        title: Text(
-          'Record Payment from ${man['name']}',
-          style: const TextStyle(color: Colors.white, fontSize: 18),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'Current Collector Amount: ₹${(man['total_balance'] as num).toStringAsFixed(2)}',
-              style: const TextStyle(color: Colors.white70),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: controller,
-              keyboardType: TextInputType.number,
-              autofocus: true,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                labelText: 'Amount Paid (₹)',
-                labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
-                filled: true,
-                fillColor: Colors.white.withOpacity(0.05),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancel',
-              style: TextStyle(color: Colors.white.withOpacity(0.5)),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final val = double.tryParse(controller.text);
-              Navigator.pop(context, val);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.greenAccent,
-            ),
-            child: const Text(
-              'Confirm Payment',
-              style: TextStyle(
-                color: Colors.black,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final double remaining = selectedOrder != null
+              ? (selectedOrder!['total_value'] as num).toDouble() -
+                  (selectedOrder!['paid_amount'] as num? ?? 0.0).toDouble()
+              : 0.0;
 
-    if (amount != null && amount > 0 && mounted) {
-      final currentBalance = (man['total_balance'] as num).toDouble();
-      if (amount > currentBalance) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Error: Payment amount cannot be more than the Balance!',
+          return AlertDialog(
+            backgroundColor: const Color(0xFF1A1A2E),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
             ),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
-        return;
-      }
-      try {
-        final newBalance = currentBalance - amount;
-        await _supabase
-            .from('middle_men')
-            .update({'total_balance': newBalance})
-            .eq('id', man['id']);
-
-        if (mounted) {
-          _fetchMiddleMen(); // Instant refresh
-
-          if (newBalance == 0) {
-            _confettiController.play();
-            _audioPlayer.play(
-              UrlSource(
-                'https://assets.mixkit.co/active_storage/sfx/2013/2013-preview.mp3',
-              ),
-            );
-
-            showDialog(
-              context: context,
-              builder: (context) => AlertDialog(
-                backgroundColor: const Color(0xFF1A1A2E),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                title: const Column(
-                  children: [
-                    Icon(
-                      Icons.emoji_events,
-                      color: Colors.orangeAccent,
-                      size: 64,
+            title: Text(
+              'Record Payment: ${man['name']}',
+              style: const TextStyle(color: Colors.white, fontSize: 18),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                DropdownButtonFormField<Map<String, dynamic>>(
+                  dropdownColor: const Color(0xFF1E1E2C),
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: 'Select Order',
+                    labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                    filled: true,
+                    fillColor: Colors.white.withOpacity(0.05),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
                     ),
-                    SizedBox(height: 16),
-                    Text(
-                      'CONGRATULATIONS!',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
+                  ),
+                  items: pendingOrders.map((o) {
+                    final date = DateTime.tryParse(o['event_date'] ?? '');
+                    final dateStr = date != null
+                        ? ' (${date.day}/${date.month})'
+                        : '';
+                    return DropdownMenuItem(
+                      value: o,
+                      child: Text(
+                        '${o['client_name']}$dateStr',
+                        style: const TextStyle(fontSize: 14),
                       ),
+                    );
+                  }).toList(),
+                  onChanged: (val) =>
+                      setDialogState(() => selectedOrder = val),
+                ),
+                if (selectedOrder != null) ...[
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orangeAccent.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                  ],
-                ),
-                content: Text(
-                  'Full payment received from ${man['name']}! Your Khata is now clear for this collector.',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.white70),
-                ),
-                actions: [
-                  Center(
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orangeAccent,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                    child: Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Total Value:',
+                              style: TextStyle(color: Colors.white54, fontSize: 12),
+                            ),
+                            Text(
+                              '₹${(selectedOrder!['total_value'] as num).toStringAsFixed(2)}',
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                            ),
+                          ],
                         ),
-                      ),
-                      child: const Text(
-                        'GREAT!',
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontWeight: FontWeight.bold,
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Outstanding:',
+                              style: TextStyle(color: Colors.orangeAccent, fontSize: 12),
+                            ),
+                            Text(
+                              '₹${remaining.toStringAsFixed(2)}',
+                              style: const TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold),
+                            ),
+                          ],
                         ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: amountController,
+                    keyboardType: TextInputType.number,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      labelText: 'Amount Paid (₹)',
+                      labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                      filled: true,
+                      fillColor: Colors.white.withOpacity(0.05),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
                       ),
+                      hintText: 'Max: ₹${remaining.toStringAsFixed(0)}',
+                      hintStyle: const TextStyle(color: Colors.white24),
                     ),
                   ),
                 ],
-              ),
-            );
-          } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'Payment of ₹$amount recorded. New balance: ₹${newBalance.toStringAsFixed(2)}',
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(
+                  'Cancel',
+                  style: TextStyle(color: Colors.white.withOpacity(0.5)),
                 ),
-                backgroundColor: Colors.green,
               ),
-            );
+              ElevatedButton(
+                onPressed: selectedOrder == null
+                    ? null
+                    : () {
+                        final val = double.tryParse(amountController.text);
+                        if (val == null || val <= 0) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Please enter a valid amount')),
+                          );
+                          return;
+                        }
+                        if (val > (remaining + 0.01)) { // Adding tiny margin for float precision
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Error: Only ₹${remaining.toStringAsFixed(2)} outstanding!')),
+                          );
+                          return;
+                        }
+                        amount = val;
+                        Navigator.pop(context, {'order': selectedOrder, 'amount': amount});
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.greenAccent,
+                  disabledBackgroundColor: Colors.white.withOpacity(0.05),
+                ),
+                child: const Text(
+                  'Confirm',
+                  style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    if (result != null && mounted) {
+      final Map<String, dynamic> order = result['order'];
+      final double paid = result['amount'];
+      final double currentPaid = (order['paid_amount'] as num? ?? 0.0).toDouble();
+      final double totalValue = (order['total_value'] as num).toDouble();
+      final double newPaidAmount = currentPaid + paid;
+      final bool isFullyPaid = newPaidAmount >= (totalValue - 0.01);
+
+      try {
+        // 1. Update Order
+        await _supabase.from('orders').update({
+          'paid_amount': newPaidAmount,
+          'payment_status': isFullyPaid ? 'paid' : 'pending',
+        }).eq('id', order['id']);
+
+        // 2. Update Middleman Balance
+        final currentManBalance = (man['total_balance'] as num).toDouble();
+        await _supabase.from('middle_men').update({
+          'total_balance': currentManBalance - paid,
+        }).eq('id', man['id']);
+
+        if (mounted) {
+          _fetchMiddleMen();
+          
+          if (isFullyPaid) {
+            _confettiController.play();
+            _audioPlayer.play(UrlSource('https://assets.mixkit.co/active_storage/sfx/2013/2013-preview.mp3'));
           }
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Payment of ₹${paid.toStringAsFixed(0)} recorded for ${order['client_name']}'),
+              backgroundColor: Colors.green,
+            ),
+          );
         }
       } catch (e) {
         debugPrint('Error recording payment: $e');
+        _toast('Error: $e');
       }
     }
+  }
+
+  Future<void> _recordPaymentOld(int index) async {
+}
   }
 
   @override
@@ -798,7 +861,7 @@ class _KaathaScreenState extends State<KaathaScreen> {
                             final res = await _supabase
                                 .from('orders')
                                 .select(
-                                  'id, client_name, total_value, payment_status, event_date',
+                                  'id, client_name, total_value, paid_amount, payment_status, event_date',
                                 )
                                 .eq('company_id', widget.companyId)
                                 .eq('middleman_tag', tag)
@@ -918,11 +981,6 @@ class _KaathaScreenState extends State<KaathaScreen> {
                                             ],
                                           ),
                                         ),
-                                        Text(
-                                          '₹${total.toStringAsFixed(0)}',
-                                          style: TextStyle(
-                                            color: isPending
-                                                ? Colors.redAccent
                                                 : Colors.greenAccent,
                                             fontWeight: FontWeight.bold,
                                             fontSize: 14,

@@ -478,6 +478,92 @@ class _StaffViewState extends State<StaffView> {
     );
   }
 
+  Future<void> _leaveCompany() async {
+    if (_companyId == null) return;
+
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF161626),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: Colors.white.withOpacity(0.1)),
+        ),
+        title: const Text(
+          'Leave Company',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: const Text(
+          'Are you sure you want to leave this company? You will lose access to the dashboard until you join another company.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text(
+              'Leave',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _loading = true);
+
+    try {
+      final user = supabase.auth.currentUser;
+      if (user == null) return;
+
+      // 1. Get Owner ID before leaving
+      final companyRes = await supabase
+          .from('companies')
+          .select('owner_id')
+          .eq('id', _companyId!)
+          .maybeSingle();
+      
+      final ownerId = companyRes?['owner_id'];
+
+      // 2. Update Profile
+      await supabase
+          .from('profiles')
+          .update({'company_id': null})
+          .eq('id', user.id);
+
+      // 3. Send Notification to Owner
+      if (ownerId != null) {
+        await supabase.from('notifications').insert({
+          'owner_id': ownerId,
+          'company_id': _companyId,
+          'title': 'Staff Left',
+          'message': '${_staffName ?? 'A staff member'} has left the company.',
+          'type': 'staff_left',
+        });
+      }
+
+      _showToast('Successfully left the company', Colors.green);
+      _fetchStaffProfile();
+    } catch (e) {
+      _showToast('Error: $e', Colors.redAccent);
+      setState(() => _loading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -834,10 +920,35 @@ class _StaffViewState extends State<StaffView> {
             ),
 
             const SizedBox(height: 30),
+            const SizedBox(height: 30),
             _buildAvailableToClaim(),
             const SizedBox(height: 30),
             _buildUpcomingEvents(),
             const SizedBox(height: 40),
+            
+            // Leave Company Button
+            Center(
+              child: TextButton.icon(
+                onPressed: _leaveCompany,
+                icon: const Icon(Icons.exit_to_app, color: Colors.redAccent, size: 20),
+                label: const Text(
+                  'Leave Company',
+                  style: TextStyle(
+                    color: Colors.redAccent,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  backgroundColor: Colors.redAccent.withOpacity(0.05),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: const BorderSide(color: Colors.redAccent, width: 0.5),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 60),
           ],
         ),
       ),

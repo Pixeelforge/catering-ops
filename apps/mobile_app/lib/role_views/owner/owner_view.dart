@@ -27,12 +27,15 @@ class _OwnerViewState extends State<OwnerView> {
   int _pendingCount = 0;
   int _selectedIndex = 0;
   RealtimeChannel? _requestSubscription;
+  RealtimeChannel? _notificationSubscription;
+  int _unreadNotificationsCount = 0;
   bool _showId = false;
   final _audioPlayer = AudioPlayer();
 
   @override
   void dispose() {
     _requestSubscription?.unsubscribe();
+    _notificationSubscription?.unsubscribe();
     _audioPlayer.dispose();
     super.dispose();
   }
@@ -70,6 +73,8 @@ class _OwnerViewState extends State<OwnerView> {
           _fetchCompanyName();
           _fetchRequestCount();
           _setupRequestRealtime();
+          _fetchNotificationsCount();
+          _setupNotificationRealtime();
           _fetchActiveDelivery();
         }
       }
@@ -98,13 +103,149 @@ class _OwnerViewState extends State<OwnerView> {
     try {
       final res = await supabase
           .from('company_join_requests')
-          .select('id')
-          .eq('company_id', _companyId!)
-          .eq('status', 'pending');
-      if (mounted) {
-        setState(() => _pendingCount = (res as List).length);
-      }
+          .select('id', const FetchOptions(count: CountOption.exact))
+          .eq('status', 'pending')
+          .eq('company_id', _companyId!);
+      if (mounted) setState(() => _pendingCount = res.count);
     } catch (_) {}
+  }
+
+  Future<void> _fetchNotificationsCount() async {
+    if (_companyId == null) return;
+    try {
+      final res = await supabase
+          .from('notifications')
+          .select('id', const FetchOptions(count: CountOption.exact))
+          .eq('is_read', false);
+      if (mounted) setState(() => _unreadNotificationsCount = res.count);
+    } catch (_) {}
+  }
+
+  void _setupNotificationRealtime() {
+    final user = supabase.auth.currentUser;
+    if (user == null) return;
+
+    _notificationSubscription = supabase
+        .channel('public:notifications')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'notifications',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'owner_id',
+            value: user.id,
+          ),
+          callback: (payload) {
+            if (mounted) {
+              setState(() {
+                _unreadNotificationsCount++;
+              });
+              _audioPlayer.play(AssetSource('sounds/notification.mp3')).catchError((_) {});
+              _showNotificationAlert(payload.newRecord['title'], payload.newRecord['message']);
+            }
+          },
+        )
+        .subscribe();
+  }
+
+  void _showNotificationAlert(String title, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+            Text(message),
+          ],
+        ),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Colors.blueAccent,
+        duration: const Duration(seconds: 4),
+      ),
+    );
+  }
+
+  void _showNotificationsSheet() {
+    setState(() => _unreadNotificationsCount = 0);
+    // Mark all as read
+    supabase
+        .from('notifications')
+        .update({'is_read': true})
+        .eq('is_read', false)
+        .then((_) {});
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF161626),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Notifications',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close, color: Colors.white70),
+                ),
+              ],
+            ),
+            const Divider(color: Colors.white10),
+            Expanded(
+              child: FutureBuilder<List<Map<String, dynamic>>>(
+                future: supabase
+                    .from('notifications')
+                    .select()
+                    .order('created_at', ascending: false)
+                    .limit(20),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  final notifications = snapshot.data ?? [];
+                  if (notifications.isEmpty) {
+                    return const Center(
+                      child: Text('No notifications', style: TextStyle(color: Colors.white38)),
+                    );
+                  }
+                  return ListView.builder(
+                    itemCount: notifications.length,
+                    itemBuilder: (context, index) {
+                      final n = notifications[index];
+                      return ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: Colors.blueAccent.withOpacity(0.1),
+                          child: const Icon(Icons.notifications, color: Colors.blueAccent, size: 20),
+                        ),
+                        title: Text(n['title'], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        subtitle: Text(n['message'], style: const TextStyle(color: Colors.white70)),
+                        trailing: Text(
+                          DateFormat('HH:mm').format(DateTime.parse(n['created_at']).toLocal()),
+                          style: const TextStyle(color: Colors.white38, fontSize: 10),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _toast(String message) {
@@ -758,6 +899,39 @@ class _OwnerViewState extends State<OwnerView> {
         ),
         automaticallyImplyLeading: false,
         actions: [
+          Stack(
+            children: [
+              IconButton(
+                onPressed: _showNotificationsSheet,
+                icon: const Icon(Icons.notifications_none, color: Colors.white),
+              ),
+              if (_unreadNotificationsCount > 0)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: Colors.redAccent,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 14,
+                      minHeight: 14,
+                    ),
+                    child: Text(
+                      '$_unreadNotificationsCount',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 8,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
+          ),
           IconButton(
             onPressed: () async {
               final user = Supabase.instance.client.auth.currentUser;

@@ -454,8 +454,11 @@ class _KaathaScreenState extends State<KaathaScreen> {
     }
   }
 
-  Future<void> _recordPaymentOld(int index) async {
-}
+  void _toast(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   @override
@@ -980,7 +983,11 @@ class _KaathaScreenState extends State<KaathaScreen> {
                                                 ),
                                             ],
                                           ),
-                                        ),
+                                        Text(
+                                          '₹${total.toStringAsFixed(0)}',
+                                          style: TextStyle(
+                                            color: isPending
+                                                ? Colors.redAccent
                                                 : Colors.greenAccent,
                                             fontWeight: FontWeight.bold,
                                             fontSize: 14,
@@ -988,7 +995,7 @@ class _KaathaScreenState extends State<KaathaScreen> {
                                         ),
                                       ],
                                     ),
-                                  );
+                                  ),
                                 }),
                               ],
                             );

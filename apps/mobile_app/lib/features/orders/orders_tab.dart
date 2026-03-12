@@ -889,7 +889,7 @@ Please ensure timely delivery!
                                 ),
                               ),
 
-                            if (order['venue_address'] != null &&
+                            if (!isDelivered && order['venue_address'] != null &&
                                 order['venue_address']
                                     .toString()
                                     .trim()
@@ -939,7 +939,7 @@ Please ensure timely delivery!
                                   ),
                                 ),
                               ),
-                            if (middlemanTag != null && middlemanTag.contains('('))
+                            if (!isDelivered && middlemanTag != null && middlemanTag.contains('('))
                               Padding(
                                 padding: const EdgeInsets.only(
                                   top: 4,
@@ -984,10 +984,8 @@ Please ensure timely delivery!
                                     ),
                                   ),
                                 ),
-                              ),
-
-                            // NEW ACCESSIBLE WHATSAPP SHARE BUTTON BAR
-                            if (!isDeliveryOpen && deliveryStaffId != null)
+                                  // NEW ACCESSIBLE WHATSAPP SHARE BUTTON BAR
+                            if (!isDelivered && !isDeliveryOpen && deliveryStaffId != null)
                               FutureBuilder(
                                 future: _supabase
                                     .from('profiles')
@@ -998,7 +996,7 @@ Please ensure timely delivery!
                                   final phone = snapshot.data?['phone'];
                                   if (phone == null)
                                     return const SizedBox.shrink();
-
+ 
                                   return Padding(
                                     padding: const EdgeInsets.only(
                                       top: 4,
@@ -1048,7 +1046,8 @@ Please ensure timely delivery!
                                 },
                               ),
 
-                            if (isDeliveryOpen &&
+                            if (!isDelivered && 
+                                isDeliveryOpen &&
                                 order['delivery_bidding_ends_at'] != null)
                               Padding(
                                 padding: const EdgeInsets.only(
@@ -1090,7 +1089,8 @@ Please ensure timely delivery!
                                 ),
                               ),
                             // View Bids button
-                            if (isDeliveryOpen &&
+                            if (!isDelivered &&
+                                isDeliveryOpen &&
                                 order['delivery_bidding_ends_at'] != null)
                               Padding(
                                 padding: const EdgeInsets.only(
@@ -1346,7 +1346,7 @@ Please ensure timely delivery!
                                 ],
                               ),
                             )
-                          else
+                          if (!isDelivered)
                             // Assign for Delivery — disabled while bidding is active
                             Padding(
                               padding: const EdgeInsets.only(top: 10),
@@ -1393,8 +1393,8 @@ Please ensure timely delivery!
                                 ),
                               ),
                             ),
-                          // Send to Khata — disabled while bidding is active
-                          if (middlemanTag != null && middlemanTag.isNotEmpty)
+                          // Send to Khata — disabled while bidding is active or delivered
+                          if (!isDelivered && middlemanTag != null && middlemanTag.isNotEmpty)
                             Padding(
                               padding: const EdgeInsets.only(top: 8),
                               child: SizedBox(
@@ -1440,68 +1440,69 @@ Please ensure timely delivery!
                                 ),
                               ),
                             ),
-                          // Delete Order Button
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: TextButton.icon(
-                              onPressed: () async {
-                                final confirm = await showDialog<bool>(
-                                  context: context,
-                                  builder: (context) => AlertDialog(
-                                    backgroundColor: const Color(0xFF1A1A2E),
-                                    title: const Text(
-                                      'Delete Order',
-                                      style: TextStyle(color: Colors.white),
-                                    ),
-                                    content: const Text(
-                                      'Are you sure you want to delete this order?',
-                                      style: TextStyle(color: Colors.white70),
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () =>
-                                            Navigator.pop(context, false),
-                                        child: Text(
-                                          'Cancel',
-                                          style: TextStyle(
-                                            color: Colors.white.withOpacity(
-                                              0.5,
+                          // Delete Order Button - Only if not delivered
+                          if (!isDelivered)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: TextButton.icon(
+                                onPressed: () async {
+                                  final confirm = await showDialog<bool>(
+                                    context: context,
+                                    builder: (context) => AlertDialog(
+                                      backgroundColor: const Color(0xFF1A1A2E),
+                                      title: const Text(
+                                        'Delete Order',
+                                        style: TextStyle(color: Colors.white),
+                                      ),
+                                      content: const Text(
+                                        'Are you sure you want to delete this order?',
+                                        style: TextStyle(color: Colors.white70),
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.pop(context, false),
+                                          child: Text(
+                                            'Cancel',
+                                            style: TextStyle(
+                                              color: Colors.white.withOpacity(
+                                                0.5,
+                                              ),
                                             ),
                                           ),
                                         ),
-                                      ),
-                                      ElevatedButton(
-                                        onPressed: () =>
-                                            Navigator.pop(context, true),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.redAccent,
+                                        ElevatedButton(
+                                          onPressed: () =>
+                                              Navigator.pop(context, true),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.redAccent,
+                                          ),
+                                          child: const Text(
+                                            'Delete',
+                                            style: TextStyle(color: Colors.white),
+                                          ),
                                         ),
-                                        child: const Text(
-                                          'Delete',
-                                          style: TextStyle(color: Colors.white),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                                if (confirm == true) {
-                                  _deleteOrder(order['id']);
-                                }
-                              },
-                              icon: const Icon(
-                                Icons.delete_outline,
-                                color: Colors.redAccent,
-                                size: 18,
-                              ),
-                              label: const Text(
-                                'Delete Order',
-                                style: TextStyle(
+                                      ],
+                                    ),
+                                  );
+                                  if (confirm == true) {
+                                    _deleteOrder(order['id']);
+                                  }
+                                },
+                                icon: const Icon(
+                                  Icons.delete_outline,
                                   color: Colors.redAccent,
-                                  fontWeight: FontWeight.bold,
+                                  size: 18,
+                                ),
+                                label: const Text(
+                                  'Delete Order',
+                                  style: TextStyle(
+                                    color: Colors.redAccent,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
                         ],
                       ),
                     ),

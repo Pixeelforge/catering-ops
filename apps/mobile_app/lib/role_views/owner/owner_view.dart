@@ -28,6 +28,7 @@ class _OwnerViewState extends State<OwnerView> {
   int _selectedIndex = 0;
   RealtimeChannel? _requestSubscription;
   RealtimeChannel? _notificationSubscription;
+  RealtimeChannel? _ordersSubscription;
   int _unreadNotificationsCount = 0;
   bool _showId = false;
   final _audioPlayer = AudioPlayer();
@@ -36,6 +37,7 @@ class _OwnerViewState extends State<OwnerView> {
   void dispose() {
     _requestSubscription?.unsubscribe();
     _notificationSubscription?.unsubscribe();
+    _ordersSubscription?.unsubscribe();
     _audioPlayer.dispose();
     super.dispose();
   }
@@ -75,6 +77,7 @@ class _OwnerViewState extends State<OwnerView> {
           _setupRequestRealtime();
           _fetchNotificationsCount();
           _setupNotificationRealtime();
+          _setupOrdersRealtime();
           _fetchActiveDelivery();
         }
       }

@@ -1599,13 +1599,17 @@ class _StaffViewState extends State<StaffView> {
                   vertical: 4,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.orangeAccent.withOpacity(0.1),
+                  color: (order['order_status'] == 'completed')
+                      ? Colors.greenAccent.withOpacity(0.1)
+                      : Colors.orangeAccent.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Text(
-                  'Upcoming',
+                child: Text(
+                  (order['order_status'] == 'completed') ? 'Delivered' : 'Upcoming',
                   style: TextStyle(
-                    color: Colors.orangeAccent,
+                    color: (order['order_status'] == 'completed')
+                        ? Colors.greenAccent
+                        : Colors.orangeAccent,
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
                   ),
@@ -1624,53 +1628,55 @@ class _StaffViewState extends State<StaffView> {
               ),
             ],
           ),
-          if (order['venue_address'] != null && order['venue_address'].toString().trim().isNotEmpty) ...[
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () => _openMaps(order['venue_address']),
-                icon: const Icon(Icons.directions, size: 18),
-                label: const Text(
-                  'Get Directions',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blueAccent.withOpacity(0.2),
-                  foregroundColor: Colors.blueAccent,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    side: BorderSide(color: Colors.blueAccent.withOpacity(0.5)),
+          if (order['order_status'] != 'completed') ...[
+            if (order['venue_address'] != null && order['venue_address'].toString().trim().isNotEmpty) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => _openMaps(order['venue_address']),
+                  icon: const Icon(Icons.directions, size: 18),
+                  label: const Text(
+                    'Get Directions',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blueAccent.withOpacity(0.2),
+                    foregroundColor: Colors.blueAccent,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      side: BorderSide(color: Colors.blueAccent.withOpacity(0.5)),
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
-          if (order['middleman_tag'] != null && order['middleman_tag'].toString().contains('(')) ...[
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () => _shareLocationWithMiddleman(order['middleman_tag']),
-                icon: const Icon(Icons.share_location, size: 18),
-                label: const Text(
-                  'Share My Location with Middleman',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.greenAccent.withOpacity(0.2),
-                  foregroundColor: Colors.greenAccent,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    side: BorderSide(color: Colors.greenAccent.withOpacity(0.5)),
+            ],
+            if (order['middleman_tag'] != null && order['middleman_tag'].toString().contains('(')) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => _shareLocationWithMiddleman(order['middleman_tag']),
+                  icon: const Icon(Icons.share_location, size: 18),
+                  label: const Text(
+                    'Share My Location with Middleman',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.greenAccent.withOpacity(0.2),
+                    foregroundColor: Colors.greenAccent,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      side: BorderSide(color: Colors.greenAccent.withOpacity(0.5)),
+                    ),
                   ),
                 ),
               ),
-            ),
+            ],
           ],
           const SizedBox(height: 12),
           const Divider(color: Colors.white10),

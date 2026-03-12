@@ -152,6 +152,30 @@ class _OwnerViewState extends State<OwnerView> {
         .subscribe();
   }
 
+  void _setupOrdersRealtime() {
+    if (_companyId == null) return;
+
+    _ordersSubscription?.unsubscribe();
+    _ordersSubscription = supabase
+        .channel('public:orders_owner')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'orders',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'company_id',
+            value: _companyId!,
+          ),
+          callback: (payload) {
+            if (mounted) {
+              _fetchActiveDelivery();
+            }
+          },
+        )
+        .subscribe();
+  }
+
   void _showNotificationAlert(String title, String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(

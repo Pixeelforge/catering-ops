@@ -984,7 +984,7 @@ Please ensure timely delivery!
                                     ),
                                   ),
                                 ),
-                                  // NEW ACCESSIBLE WHATSAPP SHARE BUTTON BAR
+                              ), // NEW ACCESSIBLE WHATSAPP SHARE BUTTON BAR
                             if (!isDelivered && !isDeliveryOpen && deliveryStaffId != null)
                               FutureBuilder(
                                 future: _supabase
@@ -1345,7 +1345,7 @@ Please ensure timely delivery!
                                   ),
                                 ],
                               ),
-                            )
+                            ),
                           if (!isDelivered)
                             // Assign for Delivery — disabled while bidding is active
                             Padding(

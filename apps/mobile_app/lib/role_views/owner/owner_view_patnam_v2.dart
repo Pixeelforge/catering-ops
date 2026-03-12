@@ -1,7 +1,10 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:geolocator/geolocator.dart';
 import 'staff_management_screen.dart';
 import 'join_requests_screen.dart';
 import '../../features/inventory/inventory_list_screen.dart';
@@ -67,6 +70,7 @@ class _OwnerViewState extends State<OwnerView> {
           _fetchCompanyName();
           _fetchRequestCount();
           _setupRequestRealtime();
+          _fetchActiveDelivery();
         }
       }
     } catch (e) {
@@ -101,6 +105,172 @@ class _OwnerViewState extends State<OwnerView> {
         setState(() => _pendingCount = (res as List).length);
       }
     } catch (_) {}
+  }
+
+  void _toast(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    }
+  }
+
+  Future<void> _shareLocationToMiddleman() async {
+    try {
+      final res = await supabase
+          .from('middle_men')
+          .select('name, phone_number')
+          .eq('company_id', _companyId!);
+      
+      if (res == null || (res as List).isEmpty) {
+        _toast('No middlemen found to share location with');
+        return;
+      }
+
+      final middleMen = List<Map<String, dynamic>>.from(res);
+      
+      if (!mounted) return;
+
+      final selectedMid = await showDialog<Map<String, dynamic>>(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: const Color(0xFF1A1A2E),
+          title: const Text('Share Location With...', style: TextStyle(color: Colors.white)),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: middleMen.length,
+              itemBuilder: (context, index) {
+                final mid = middleMen[index];
+                return ListTile(
+                  title: Text(mid['name'] ?? '', style: const TextStyle(color: Colors.white)),
+                  subtitle: Text(mid['phone_number'] ?? '', style: const TextStyle(color: Colors.white70)),
+                  onTap: () => Navigator.pop(context, mid),
+                );
+              },
+            ),
+          ),
+        ),
+      );
+
+      if (selectedMid != null) {
+        await _performLocationSharing(selectedMid['phone_number']);
+      }
+    } catch (e) {
+      _toast('Error: $e');
+    }
+  }
+
+  Future<void> _performLocationSharing(String phone) async {
+    final phoneNumber = phone.replaceAll(RegExp(r'[^\d+]'), '');
+    if (phoneNumber.isEmpty) {
+      _toast('Invalid phone number');
+      return;
+    }
+
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        _toast('Location services are disabled');
+        return;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          _toast('Location permissions are denied');
+          return;
+        }
+      }
+
+      _toast('Getting location...');
+      Position position = await Geolocator.getCurrentPosition();
+      
+      final String googleMapsUrl = 'https://www.google.com/maps/search/?api=1&query=${position.latitude},${position.longitude}';
+      final String message = Uri.encodeComponent('Hi, I am the owner. Here is my current location: $googleMapsUrl');
+      final Uri whatsappUrl = Uri.parse('whatsapp://send?phone=$phoneNumber&text=$message');
+
+      if (await canLaunchUrl(whatsappUrl)) {
+        await launchUrl(whatsappUrl);
+      } else {
+        final Uri webWhatsapp = Uri.parse('https://wa.me/$phoneNumber?text=$message');
+        await launchUrl(webWhatsapp, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      _toast('Error sharing location: $e');
+    }
+  }
+
+  Map<String, dynamic>? _activeDelivery;
+  bool _loadingActive = false;
+
+  Future<void> _fetchActiveDelivery() async {
+    if (_companyId == null) return;
+    setState(() => _loadingActive = true);
+    try {
+      final res = await supabase
+          .from('orders')
+          .select('id, client_name, middleman_tag, delivery_staff_id, profiles!orders_delivery_staff_id_fkey(full_name, last_latitude, last_longitude)')
+          .eq('company_id', _companyId!)
+          .eq('order_status', 'upcoming')
+          .not('delivery_staff_id', 'is', null)
+          .order('event_date', ascending: true)
+          .limit(1)
+          .maybeSingle();
+
+      if (mounted) {
+        setState(() {
+          _activeDelivery = res;
+          _loadingActive = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching active delivery: $e');
+      if (mounted) setState(() => _loadingActive = false);
+    }
+  }
+
+  Future<void> _shareStaffLocation(Map<String, dynamic> delivery) async {
+    final middlemanTag = delivery['middleman_tag'];
+    final staff = delivery['profiles'];
+    
+    if (middlemanTag == null || middlemanTag.isEmpty) {
+      _toast('No middleman for this order');
+      return;
+    }
+
+    final regExp = RegExp(r'\((.*?)\)');
+    final match = regExp.firstMatch(middlemanTag);
+    final phoneNumber = match?.group(1)?.replaceAll(RegExp(r'[^\d+]'), '') ?? '';
+
+    if (phoneNumber.isEmpty) {
+      _toast('No middleman phone found');
+      return;
+    }
+
+    if (staff == null || staff['last_latitude'] == null) {
+      _toast('Staff location not available yet');
+      return;
+    }
+
+    final lat = staff['last_latitude'];
+    final lng = staff['last_longitude'];
+    final staffName = staff['full_name'] ?? 'Staff';
+    final googleMapsUrl = 'https://www.google.com/maps/search/?api=1&query=$lat,$lng';
+    final String message = Uri.encodeComponent('Hi, I am the owner. Here is the live location of our delivery staff ($staffName): $googleMapsUrl');
+    
+    final Uri whatsappUrl = Uri.parse('whatsapp://send?phone=$phoneNumber&text=$message');
+    try {
+      if (await canLaunchUrl(whatsappUrl)) {
+        await launchUrl(whatsappUrl);
+      } else {
+        await launchUrl(Uri.parse('https://wa.me/$phoneNumber?text=$message'), mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      _toast('Error: $e');
+    }
   }
 
   void _setupRequestRealtime() {
@@ -186,6 +356,69 @@ class _OwnerViewState extends State<OwnerView> {
             ),
           ),
           const SizedBox(height: 30),
+
+          if (_activeDelivery != null) ...[
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.orangeAccent.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.orangeAccent.withOpacity(0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                   Row(
+                    children: [
+                      const Icon(Icons.local_shipping, color: Colors.orangeAccent, size: 20),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'ACTIVE DELIVERY',
+                        style: TextStyle(
+                          color: Colors.orangeAccent,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.refresh, color: Colors.orangeAccent, size: 16),
+                        onPressed: _fetchActiveDelivery,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Client: ${_activeDelivery!['client_name']}',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    'Staff: ${_activeDelivery!['profiles']?['full_name'] ?? 'Assigning...'}',
+                    style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _shareStaffLocation(_activeDelivery!),
+                      icon: const Icon(Icons.share_location, size: 18),
+                      label: const Text('Share Staff Location'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orangeAccent,
+                        foregroundColor: Colors.black87,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
 
           // Company ID Card (The "Copy" section)
           Container(
@@ -284,6 +517,67 @@ class _OwnerViewState extends State<OwnerView> {
                   ),
                 ),
               ],
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          // QUICK LOCATION SHARE CARD
+          InkWell(
+            onTap: _shareLocationToMiddleman,
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.greenAccent.withOpacity(0.15),
+                    Colors.greenAccent.withOpacity(0.05),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.greenAccent.withOpacity(0.2)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.greenAccent.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.share_location,
+                      color: Colors.greenAccent,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Share My Location',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        Text(
+                          'Send live location to a middleman',
+                          style: TextStyle(color: Colors.white54, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    color: Colors.white24,
+                    size: 16,
+                  ),
+                ],
+              ),
             ),
           ),
 

@@ -20,6 +20,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
 
   // Form Fields
   final _clientNameController = TextEditingController();
+  final _venueAddressController = TextEditingController();
   final _totalController = TextEditingController();
 
   DateTime? _selectedDate;
@@ -86,6 +87,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
   @override
   void dispose() {
     _clientNameController.dispose();
+    _venueAddressController.dispose();
     _totalController.dispose();
     super.dispose();
   }
@@ -710,6 +712,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
       await _supabase.from('orders').insert({
         'company_id': widget.companyId,
         'client_name': _clientNameController.text.trim(),
+        'venue_address': _venueAddressController.text.trim(),
         'event_date': eventDateTime,
         'menu_items': menuItemsJson,
         'middleman_tag': middlemanTag,
@@ -804,6 +807,31 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                     validator: (v) => v == null || v.isEmpty
                         ? 'Client name is required'
                         : null,
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Venue Address
+                  TextFormField(
+                    controller: _venueAddressController,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      labelText: 'Venue Address (for Maps)',
+                      labelStyle: const TextStyle(color: Colors.white54),
+                      prefixIcon: const Icon(
+                        Icons.location_on_outlined,
+                        color: Colors.orangeAccent,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: const BorderSide(color: Colors.white12),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: const BorderSide(
+                          color: Colors.orangeAccent,
+                        ),
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 20),
 

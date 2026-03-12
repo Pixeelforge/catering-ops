@@ -43,8 +43,9 @@ dependencies:
   cupertino_icons: ^1.0.8
   cached_network_image: ^3.4.1
   intl: ^0.20.2
-  shared_preferences: ^2.5.4
   url_launcher: ^6.3.2
+  geolocator: ^13.0.1
+  shared_preferences: ^2.5.4
   hive: ^2.2.3
   hive_flutter: ^1.1.0
 

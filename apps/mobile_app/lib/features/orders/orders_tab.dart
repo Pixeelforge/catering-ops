@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:geolocator/geolocator.dart';
 import 'create_order_screen.dart';
 import 'bids_screen.dart';
 
@@ -88,7 +89,129 @@ Please ensure timely delivery!
         }
       }
     } catch (e) {
-      _toast('Error launching WhatsApp');
+      _toast('Error launching WhatsApp: $e');
+    }
+  }
+
+  Future<void> _shareLocationWithMiddleman(String? middlemanTag, {String? staffId}) async {
+    if (middlemanTag == null || middlemanTag.isEmpty) {
+      _toast('No middleman associated with this order');
+      return;
+    }
+
+    // Extract phone number
+    final regExp = RegExp(r'\((.*?)\)');
+    final match = regExp.firstMatch(middlemanTag);
+    final phoneNumber = match?.group(1)?.replaceAll(RegExp(r'[^\d+]'), '') ?? '';
+
+    if (phoneNumber.isEmpty) {
+      _toast('Could not find middleman phone number');
+      return;
+    }
+
+    try {
+      String locationUrl = '';
+      String messagePrefix = 'Hi';
+      
+      // Try to get staff location if staffId is provided
+      if (staffId != null) {
+        final staffProfile = await _supabase
+            .from('profiles')
+            .select('full_name, last_latitude, last_longitude, location_updated_at')
+            .eq('id', staffId)
+            .maybeSingle();
+            
+        if (staffProfile != null && staffProfile['last_latitude'] != null) {
+          final lat = staffProfile['last_latitude'];
+          final lng = staffProfile['last_longitude'];
+          final staffName = staffProfile['full_name'] ?? 'Staff';
+          locationUrl = 'https://www.google.com/maps/search/?api=1&query=$lat,$lng';
+          messagePrefix = 'Hi, I am the owner. Here is the live location of our delivery staff ($staffName)';
+        }
+      }
+
+      // Fallback to owner's own location if staff location not available
+      if (locationUrl.isEmpty) {
+        bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+        if (!serviceEnabled) {
+          _toast('Staff location not available & your location services are disabled');
+          return;
+        }
+
+        LocationPermission permission = await Geolocator.checkPermission();
+        if (permission == LocationPermission.denied) {
+          permission = await Geolocator.requestPermission();
+          if (permission == LocationPermission.denied) {
+            _toast('Location permissions are denied');
+            return;
+          }
+        }
+
+        _toast('Getting your location (Staff location not available)...');
+        Position position = await Geolocator.getCurrentPosition();
+        locationUrl = 'https://www.google.com/maps/search/?api=1&query=${position.latitude},${position.longitude}';
+        messagePrefix = 'Hi, I am the owner. Here is my current location';
+      }
+      
+      final String message = Uri.encodeComponent('$messagePrefix: $locationUrl');
+      final Uri whatsappUrl = Uri.parse('whatsapp://send?phone=$phoneNumber&text=$message');
+
+      if (await canLaunchUrl(whatsappUrl)) {
+        await launchUrl(whatsappUrl);
+      } else {
+        final Uri webWhatsapp = Uri.parse('https://wa.me/$phoneNumber?text=$message');
+        await launchUrl(webWhatsapp, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      _toast('Error sharing location: $e');
+    }
+  }
+
+  Future<void> _openMaps(String address) async {
+    final cleanAddress = address.trim();
+    if (cleanAddress.isEmpty) return;
+
+    // Smart Link Detection: Check for full URLs or common map domains
+    final isUrl = cleanAddress.startsWith('http://') || 
+                  cleanAddress.startsWith('https://') ||
+                  cleanAddress.contains('maps.app.goo.gl') ||
+                  cleanAddress.contains('goo.gl/maps') ||
+                  cleanAddress.contains('maps.google.com');
+
+    if (isUrl) {
+      // Add protocol if missing
+      String urlString = cleanAddress;
+      if (!urlString.startsWith('http')) {
+        urlString = 'https://$urlString';
+      }
+      
+      final Uri url = Uri.parse(urlString);
+      try {
+        if (await canLaunchUrl(url)) {
+          await launchUrl(url, mode: LaunchMode.externalApplication);
+          return;
+        }
+      } catch (e) {
+        debugPrint('Error launching direction URL: $e');
+      }
+    }
+
+    // Fallback: search-based deep linking for plain text names/addresses
+    final encodedAddress = Uri.encodeComponent(cleanAddress);
+    final Uri googleMapsWebUrl = Uri.parse('https://www.google.com/maps/search/?api=1&query=$encodedAddress');
+    final Uri googleMapsNativeUrl = Uri.parse('google.navigation:q=$encodedAddress');
+    final Uri appleMapsNativeUrl = Uri.parse('apple-maps://?daddr=$encodedAddress');
+
+    try {
+      if (await canLaunchUrl(googleMapsNativeUrl)) {
+        await launchUrl(googleMapsNativeUrl, mode: LaunchMode.externalApplication);
+      } else if (await canLaunchUrl(appleMapsNativeUrl)) {
+        await launchUrl(appleMapsNativeUrl, mode: LaunchMode.externalApplication);
+      } else {
+        await launchUrl(googleMapsWebUrl, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      _toast('Could not open Maps: $e');
     }
   }
 
@@ -765,7 +888,104 @@ Please ensure timely delivery!
                                   ),
                                 ),
                               ),
-                              
+
+                            if (order['venue_address'] != null &&
+                                order['venue_address']
+                                    .toString()
+                                    .trim()
+                                    .isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  top: 4,
+                                  left: 22,
+                                  bottom: 8,
+                                  right: 16,
+                                ),
+                                child: GestureDetector(
+                                  onTap: () =>
+                                      _openMaps(order['venue_address']),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 6,
+                                      horizontal: 12,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.blueAccent.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color:
+                                            Colors.blueAccent.withOpacity(0.3),
+                                      ),
+                                    ),
+                                    child: const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.map_outlined,
+                                          color: Colors.blueAccent,
+                                          size: 14,
+                                        ),
+                                        SizedBox(width: 8),
+                                        Text(
+                                          'View Venue on Map',
+                                          style: TextStyle(
+                                            color: Colors.blueAccent,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            if (middlemanTag != null && middlemanTag.contains('('))
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  top: 4,
+                                  left: 22,
+                                  bottom: 8,
+                                  right: 16,
+                                ),
+                                child: GestureDetector(
+                                  onTap: () => _shareLocationWithMiddleman(middlemanTag, staffId: deliveryStaffId),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 6,
+                                      horizontal: 12,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.greenAccent.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: Colors.greenAccent.withOpacity(0.3),
+                                      ),
+                                    ),
+                                    child: const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.share_location,
+                                          color: Colors.greenAccent,
+                                          size: 14,
+                                        ),
+                                        SizedBox(width: 8),
+                                        Text(
+                                          deliveryStaffId != null 
+                                            ? 'Share Staff Location with Middleman'
+                                            : 'Share My Location with Middleman',
+                                          style: const TextStyle(
+                                            color: Colors.greenAccent,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+
                             // NEW ACCESSIBLE WHATSAPP SHARE BUTTON BAR
                             if (!isDeliveryOpen && deliveryStaffId != null)
                               FutureBuilder(
@@ -776,8 +996,9 @@ Please ensure timely delivery!
                                     .maybeSingle(),
                                 builder: (context, snapshot) {
                                   final phone = snapshot.data?['phone'];
-                                  if (phone == null) return const SizedBox.shrink();
-                                  
+                                  if (phone == null)
+                                    return const SizedBox.shrink();
+
                                   return Padding(
                                     padding: const EdgeInsets.only(
                                       top: 4,
@@ -786,20 +1007,24 @@ Please ensure timely delivery!
                                       right: 16,
                                     ),
                                     child: GestureDetector(
-                                      onTap: () => _shareToWhatsApp(order, phone.toString()),
+                                      onTap: () => _shareToWhatsApp(
+                                          order, phone.toString()),
                                       child: Container(
                                         padding: const EdgeInsets.symmetric(
                                           vertical: 8,
                                         ),
                                         decoration: BoxDecoration(
                                           color: Colors.green.withOpacity(0.15),
-                                          borderRadius: BorderRadius.circular(8),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
                                           border: Border.all(
-                                            color: Colors.green.withOpacity(0.5),
+                                            color:
+                                                Colors.green.withOpacity(0.5),
                                           ),
                                         ),
                                         child: const Row(
-                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
                                           children: [
                                             Icon(
                                               Icons.wechat,
@@ -822,7 +1047,7 @@ Please ensure timely delivery!
                                   );
                                 },
                               ),
-                              
+
                             if (isDeliveryOpen &&
                                 order['delivery_bidding_ends_at'] != null)
                               Padding(
@@ -865,7 +1090,8 @@ Please ensure timely delivery!
                                 ),
                               ),
                             // View Bids button
-                            if (isDeliveryOpen && order['delivery_bidding_ends_at'] != null)
+                            if (isDeliveryOpen &&
+                                order['delivery_bidding_ends_at'] != null)
                               Padding(
                                 padding: const EdgeInsets.only(
                                   top: 8,
@@ -882,13 +1108,14 @@ Please ensure timely delivery!
                                               order['client_name'] ?? '',
                                           baseFare:
                                               (order['delivery_fare'] as num?)
-                                                  ?.toDouble() ??
-                                              0,
-                                          biddingEndsAt:
-                                              order['delivery_bidding_ends_at'] !=
+                                                      ?.toDouble() ??
+                                                  0,
+                                          biddingEndsAt: order[
+                                                      'delivery_bidding_ends_at'] !=
                                                   null
                                               ? DateTime.parse(
-                                                  order['delivery_bidding_ends_at'],
+                                                  order[
+                                                      'delivery_bidding_ends_at'],
                                                 ).toLocal()
                                               : null,
                                         ),

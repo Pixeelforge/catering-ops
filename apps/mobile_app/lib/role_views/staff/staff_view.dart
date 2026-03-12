@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../features/inventory/inventory_list_screen.dart';
 import '../../features/orders/signature_pad_dialog.dart';
 
@@ -41,6 +43,147 @@ class _StaffViewState extends State<StaffView> {
     return _bidControllers.putIfAbsent(orderId, () => TextEditingController());
   }
 
+  Future<void> _openMaps(String address) async {
+    final cleanAddress = address.trim();
+    if (cleanAddress.isEmpty) return;
+
+    // Smart Link Detection: Check for full URLs or common map domains
+    final isUrl = cleanAddress.startsWith('http://') || 
+                  cleanAddress.startsWith('https://') ||
+                  cleanAddress.contains('maps.app.goo.gl') ||
+                  cleanAddress.contains('goo.gl/maps') ||
+                  cleanAddress.contains('maps.google.com');
+
+    if (isUrl) {
+      // Add protocol if missing
+      String urlString = cleanAddress;
+      if (!urlString.startsWith('http')) {
+        urlString = 'https://$urlString';
+      }
+      
+      final Uri url = Uri.parse(urlString);
+      try {
+        if (await canLaunchUrl(url)) {
+          await launchUrl(url, mode: LaunchMode.externalApplication);
+          return;
+        }
+      } catch (e) {
+        debugPrint('Error launching direction URL: $e');
+      }
+    }
+
+    // Fallback: search-based deep linking for plain text names/addresses
+    final encodedAddress = Uri.encodeComponent(cleanAddress);
+    final Uri googleMapsWebUrl = Uri.parse('https://www.google.com/maps/search/?api=1&query=$encodedAddress');
+    final Uri googleMapsNativeUrl = Uri.parse('google.navigation:q=$encodedAddress');
+    final Uri appleMapsNativeUrl = Uri.parse('apple-maps://?daddr=$encodedAddress');
+
+    try {
+      if (await canLaunchUrl(googleMapsNativeUrl)) {
+        await launchUrl(googleMapsNativeUrl, mode: LaunchMode.externalApplication);
+      } else if (await canLaunchUrl(appleMapsNativeUrl)) {
+        await launchUrl(appleMapsNativeUrl, mode: LaunchMode.externalApplication);
+      } else {
+        await launchUrl(googleMapsWebUrl, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      _toast('Could not open Maps: $e');
+    }
+  }
+
+  Future<void> _shareLocationWithMiddleman(String? middlemanTag) async {
+    if (middlemanTag == null || middlemanTag.isEmpty) {
+      _toast('No middleman associated with this order');
+      return;
+    }
+
+    // Extract phone number: "Name (9876543210)" -> "9876543210"
+    final regExp = RegExp(r'\((.*?)\)');
+    final match = regExp.firstMatch(middlemanTag);
+    final phoneNumber = match?.group(1)?.replaceAll(RegExp(r'[^\d+]'), '') ?? '';
+
+    if (phoneNumber.isEmpty) {
+      _toast('Could not find middleman phone number');
+      return;
+    }
+
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        _toast('Location services are disabled');
+        return;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          _toast('Location permissions are denied');
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        _toast('Location permissions are permanently denied');
+        return;
+      }
+
+      _toast('Getting location...');
+      Position position = await Geolocator.getCurrentPosition();
+      
+      final String googleMapsUrl = 'https://www.google.com/maps/search/?api=1&query=${position.latitude},${position.longitude}';
+      final String message = Uri.encodeComponent('Hi, I am the delivery staff. Here is my current location: $googleMapsUrl');
+      final Uri whatsappUrl = Uri.parse('whatsapp://send?phone=$phoneNumber&text=$message');
+
+      if (await canLaunchUrl(whatsappUrl)) {
+        await launchUrl(whatsappUrl);
+      } else {
+        // Fallback to web link
+        final Uri webWhatsapp = Uri.parse('https://wa.me/$phoneNumber?text=$message');
+        await launchUrl(webWhatsapp, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      _toast('Error sharing location: $e');
+    }
+  }
+
+  // 🔹 NEW: Periodic location updates for staff
+  Timer? _locationTimer;
+  
+  Future<void> _updateStaffLocationInDB() async {
+    final user = supabase.auth.currentUser;
+    if (user == null || _assignedOrders.isEmpty) return;
+
+    // Only update if there's an upcoming order today
+    bool hasActiveOrder = _assignedOrders.any((o) => o['order_status'] == 'upcoming');
+    if (!hasActiveOrder) return;
+
+    try {
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.medium,
+        timeLimit: const Duration(seconds: 10),
+      );
+      
+      await supabase.from('profiles').update({
+        'last_latitude': position.latitude,
+        'last_longitude': position.longitude,
+        'location_updated_at': DateTime.now().toIso8601String(),
+      }).eq('id', user.id);
+      
+      debugPrint('Staff location updated in DB: ${position.latitude}, ${position.longitude}');
+    } catch (e) {
+      debugPrint('Error updating staff location in DB: $e');
+    }
+  }
+
+  void _startLocationUpdates() {
+    _locationTimer?.cancel();
+    // Update every 5 minutes if app is in foreground and there are orders
+    _locationTimer = Timer.periodic(const Duration(minutes: 5), (_) => _updateStaffLocationInDB());
+    // Trigger initial update
+    _updateStaffLocationInDB();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -63,6 +206,7 @@ class _StaffViewState extends State<StaffView> {
     _assignedOrdersSubscription?.unsubscribe();
     _audioPlayer.dispose();
     _countdownTimer?.cancel();
+    _locationTimer?.cancel();
     for (final ctrl in _bidControllers.values) {
       ctrl.dispose();
     }
@@ -92,6 +236,7 @@ class _StaffViewState extends State<StaffView> {
           // Fetch orders NOW that we have _companyId
           _fetchAssignedOrders();
           _setupAssignedOrdersRealtime();
+          _startLocationUpdates();
         }
       }
     } catch (e) {
@@ -828,6 +973,30 @@ class _StaffViewState extends State<StaffView> {
               ),
             ],
           ),
+          if (order['venue_address'] != null && order['venue_address'].toString().trim().isNotEmpty) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => _openMaps(order['venue_address']),
+                icon: const Icon(Icons.directions, size: 18),
+                label: const Text(
+                  'Get Directions',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blueAccent.withOpacity(0.2),
+                  foregroundColor: Colors.blueAccent,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    side: BorderSide(color: Colors.blueAccent.withOpacity(0.5)),
+                  ),
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(12),
@@ -1344,6 +1513,54 @@ class _StaffViewState extends State<StaffView> {
               ),
             ],
           ),
+          if (order['venue_address'] != null && order['venue_address'].toString().trim().isNotEmpty) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => _openMaps(order['venue_address']),
+                icon: const Icon(Icons.directions, size: 18),
+                label: const Text(
+                  'Get Directions',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blueAccent.withOpacity(0.2),
+                  foregroundColor: Colors.blueAccent,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    side: BorderSide(color: Colors.blueAccent.withOpacity(0.5)),
+                  ),
+                ),
+              ),
+            ),
+          ],
+          if (order['middleman_tag'] != null && order['middleman_tag'].toString().contains('(')) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => _shareLocationWithMiddleman(order['middleman_tag']),
+                icon: const Icon(Icons.share_location, size: 18),
+                label: const Text(
+                  'Share My Location with Middleman',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.greenAccent.withOpacity(0.2),
+                  foregroundColor: Colors.greenAccent,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    side: BorderSide(color: Colors.greenAccent.withOpacity(0.5)),
+                  ),
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           const Divider(color: Colors.white10),
           const SizedBox(height: 8),
@@ -1623,5 +1840,9 @@ class _StaffViewState extends State<StaffView> {
           },
         )
         .subscribe();
+  }
+
+  void _toast(String message) {
+    _showToast(message, Colors.orangeAccent);
   }
 }

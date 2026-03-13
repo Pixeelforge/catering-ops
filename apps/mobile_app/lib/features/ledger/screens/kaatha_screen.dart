@@ -983,6 +983,7 @@ class _KaathaScreenState extends State<KaathaScreen> {
                                                 ),
                                             ],
                                           ),
+                                        ),
                                         Text(
                                           '₹${total.toStringAsFixed(0)}',
                                           style: TextStyle(
@@ -995,8 +996,8 @@ class _KaathaScreenState extends State<KaathaScreen> {
                                         ),
                                       ],
                                     ),
-                                  ),
-                                }),
+                                      );
+                                    }),
                               ],
                             );
                           },

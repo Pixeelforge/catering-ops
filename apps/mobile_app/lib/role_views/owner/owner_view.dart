@@ -10,6 +10,8 @@ import 'join_requests_screen.dart';
 import '../../features/inventory/inventory_list_screen.dart';
 import '../../features/orders/orders_tab.dart';
 import '../../features/ledger/screens/kaatha_screen.dart';
+import '../../services/notification_service.dart';
+import 'package:onesignal_flutter/onesignal_flutter.dart';
 
 class OwnerView extends StatefulWidget {
   const OwnerView({super.key});
@@ -79,6 +81,14 @@ class _OwnerViewState extends State<OwnerView> {
           _setupNotificationRealtime();
           _setupOrdersRealtime();
           _fetchActiveDelivery();
+
+          // Initialize OneSignal for Owners
+          NotificationService.initialize(user.id);
+          OneSignal.User.addTags({
+            'company_id': _companyId!,
+            'role': 'owner',
+            'full_name': _ownerName ?? 'Owner',
+          });
         }
       }
     } catch (e) {

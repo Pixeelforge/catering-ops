@@ -5,6 +5,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:geolocator/geolocator.dart';
+import '../../services/notification_service.dart';
+import 'package:onesignal_flutter/onesignal_flutter.dart';
 import '../../features/inventory/inventory_list_screen.dart';
 import '../../features/orders/signature_pad_dialog.dart';
 
@@ -233,6 +235,14 @@ class _StaffViewState extends State<StaffView> {
 
         if (_companyId != null) {
           _fetchCompanyName();
+          // Initialize OneSignal with tags
+          NotificationService.initialize(user.id);
+          OneSignal.User.addTags({
+            'company_id': _companyId!,
+            'role': 'staff',
+            'full_name': _staffName ?? 'Staff',
+          });
+          
           // Fetch orders NOW that we have _companyId
           _fetchAssignedOrders();
           _setupAssignedOrdersRealtime();
@@ -392,6 +402,25 @@ class _StaffViewState extends State<StaffView> {
         }, onConflict: 'staff_id, company_id');
 
         _showToast('Request sent to the owner!', Colors.orangeAccent);
+        
+        // Scenario 1: Notify Owner of join request
+        final ownerRes = await supabase
+            .from('companies')
+            .select('owner_id, name')
+            .eq('id', codeText)
+            .maybeSingle();
+            
+        if (ownerRes != null) {
+          final ownerId = ownerRes['owner_id'];
+          final companyName = ownerRes['name'];
+          await NotificationService.sendNotification(
+            playerIds: [ownerId],
+            title: 'New Staff Request',
+            message: '$_staffName wants to join $companyName',
+            data: {'type': 'staff_request', 'staff_id': user.id},
+          );
+        }
+        
         await _fetchRequestStatus();
       }
     } catch (e) {

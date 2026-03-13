@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
+import '../../services/notification_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:geolocator/geolocator.dart';
 import 'create_order_screen.dart';
@@ -1920,6 +1921,48 @@ Please ensure timely delivery!
                           .from('orders')
                           .update(updates)
                           .eq('id', orderId);
+
+                      // Scenario-based Notifications
+                      if (assignmentType != 'none') {
+                        // Fetch order details for the notification message
+                        final orderRes = await _supabase
+                            .from('orders')
+                            .select('client_name, event_name')
+                            .eq('id', orderId)
+                            .maybeSingle();
+
+                        if (orderRes != null) {
+                          final clientName = orderRes['client_name'];
+                          final eventName = orderRes['event_name'];
+
+                          if (assignmentType == 'specific') {
+                            // Scenario 4: Direct Assignment
+                            await NotificationService.sendNotification(
+                              playerIds: [selectedStaffId],
+                              title: 'New Order Assigned',
+                              message: 'You have been assigned to: $clientName ($eventName)',
+                              data: {'type': 'direct_assignment', 'order_id': orderId},
+                            );
+                          } else if (assignmentType == 'direct_claim') {
+                            // Scenario 2: Fastest Claim
+                            await NotificationService.sendToCompany(
+                              companyId: widget.companyId,
+                              title: 'New Order Available!',
+                              message: 'Fastest Claim: $clientName ($eventName) is available for ₹$fare',
+                              data: {'type': 'fastest_claim', 'order_id': orderId},
+                            );
+                          } else if (assignmentType == 'open') {
+                            // Scenario 3: Bidding
+                            await NotificationService.sendToCompany(
+                              companyId: widget.companyId,
+                              title: 'New Bidding Opportunity',
+                              message: 'Place your bid for: $clientName ($eventName). Base fare: ₹$fare',
+                              data: {'type': 'bidding', 'order_id': orderId},
+                            );
+                          }
+                        }
+                      }
+
                       _toast('Delivery settings updated');
                       if (mounted) Navigator.pop(context);
                     } catch (e) {

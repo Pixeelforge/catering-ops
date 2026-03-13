@@ -80,7 +80,7 @@ class _LoginScreenState extends State<LoginScreen> {
     } on AuthException catch (e) {
       setState(() {
         _error = e.message.contains("Invalid login credentials")
-            ? "Incorrect email or password"
+            ? "Incorrect phone number/email or password"
             : e.message;
       });
     } catch (_) {

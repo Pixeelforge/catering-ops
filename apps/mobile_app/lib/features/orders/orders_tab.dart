@@ -457,7 +457,7 @@ Please ensure timely delivery!
 
   Future<void> _updatePaymentStatus(Map<String, dynamic> order, String newStatus) async {
     try {
-      final updates = {
+      final updates = <String, dynamic>{
         'payment_status': newStatus,
       };
       if (newStatus == 'paid') {
@@ -1726,9 +1726,9 @@ Please ensure timely delivery!
                     if (assignmentType != 'none') ...[
                       const SizedBox(height: 16),
                       Text(
-                        assignmentType == 'specific'
+                        (assignmentType == 'specific' || assignmentType == 'direct_claim')
                             ? 'Delivery Fare (₹):'
-                            : 'Base Fare (₹):',
+                            : 'Base Delivery Fare (₹):',
                         style: const TextStyle(
                           color: Colors.white70,
                           fontSize: 12,
@@ -1749,6 +1749,10 @@ Please ensure timely delivery!
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: BorderSide.none,
+                          ),
+                          prefixIcon: const Icon(
+                            Icons.currency_rupee,
+                            color: Colors.white54,
                           ),
                         ),
                       ),
@@ -1804,34 +1808,7 @@ Please ensure timely delivery!
                         },
                       ),
                     ],
-                    if (assignmentType == 'open' || assignmentType == 'direct_claim') ...[
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Base Delivery Fare (₹):',
-                        style: TextStyle(color: Colors.white70, fontSize: 12),
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: fareController,
-                        keyboardType: TextInputType.number,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: InputDecoration(
-                          hintText: 'e.g. 150',
-                          hintStyle:
-                              TextStyle(color: Colors.white.withOpacity(0.3)),
-                          filled: true,
-                          fillColor: Colors.white.withOpacity(0.05),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
-                          ),
-                          prefixIcon: const Icon(
-                            Icons.currency_rupee,
-                            color: Colors.white54,
-                          ),
-                        ),
-                      ),
-                    ],
+
                     if (assignmentType == 'open') ...[
                       const SizedBox(height: 16),
                       const Text(

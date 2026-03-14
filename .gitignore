@@ -1,1 +1,33 @@
+# Environment variables
 .env
+*.env
+
+# Firebase / OneSignal Keys
+*-firebase-adminsdk-*.json
+cater-ops-*.json
+service-account.json
+
+# Flutter / Dart
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+build/
+
+# Android
+.gradle/
+local.properties
+*.keystore
+*.jks
+*.properties
+!google-services.json
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.lock
+
+# OS
+.DS_Store
+Thumbs.db

@@ -2,11 +2,12 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:onesignal_flutter/onesignal_flutter.dart';
+import '../core/env.dart';
 import '../main.dart';
 
 class NotificationService {
-  static const String appId = "a6be3e2a-c081-4eb2-b797-cb4f13136db4";
-  static const String restApiKey = "os_v2_app_u27d4kwaqfhlfn4xznhrge3nwtpdrfrkvaterru6pio6x6c6gquxoqdv3saousgmrlnmme6vb3ed5ved2aoxog53h5bdxsxaeqtklwy";
+  static String get appId => Env.oneSignalAppId;
+  static String get restApiKey => Env.oneSignalRestKey;
   static bool _isInitialized = false;
 
   /// Initialize OneSignal globally (called in main.dart)
@@ -106,7 +107,7 @@ class NotificationService {
         Uri.parse('https://onesignal.com/api/v1/notifications'),
         headers: {
           'Content-Type': 'application/json; charset=utf-8',
-          'Authorization': 'Key $restApiKey',
+          'Authorization': 'Basic $restApiKey',
          },
         body: jsonEncode(body),
       );
@@ -115,7 +116,7 @@ class NotificationService {
         debugPrint('🔔 OneSignal: Success: ${response.body}');
         return null;
       } else {
-        final err = 'Build: 23:00 - Status ${response.statusCode}: ${response.body}';
+        final err = 'OneSignal API Error: Status ${response.statusCode}: ${response.body}';
         debugPrint('🔔 OneSignal Error: $err');
         return err;
       }
@@ -157,7 +158,7 @@ class NotificationService {
         Uri.parse('https://onesignal.com/api/v1/notifications'),
         headers: {
           'Content-Type': 'application/json; charset=utf-8',
-          'Authorization': 'Key $restApiKey',
+          'Authorization': 'Basic $restApiKey',
         },
         body: jsonEncode(body),
       );
@@ -167,7 +168,7 @@ class NotificationService {
         return null;
       } else {
         final err =
-            'Build: 23:00 - Status ${response.statusCode}: ${response.body}';
+            'OneSignal API Error: Status ${response.statusCode}: ${response.body}';
         debugPrint('🔔 OneSignal Error: $err');
         return err;
       }

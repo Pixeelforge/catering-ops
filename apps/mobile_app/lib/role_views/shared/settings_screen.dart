@@ -205,6 +205,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onTap: _logout,
                 ),
 
+                const SizedBox(height: 32),
+                const Divider(color: Colors.white10),
+                const SizedBox(height: 24),
+                
+                // Troubleshooting
+                const Text(
+                  'Troubleshooting',
+                  style: TextStyle(color: Colors.white54, fontSize: 14, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 16),
+                _buildSettingTile(
+                  icon: Icons.notifications_active_outlined,
+                  title: 'Test Notification',
+                  subtitle: 'Check if push notifications reach this device',
+                  color: Colors.blueAccent,
+                  onTap: () async {
+                    final user = Supabase.instance.client.auth.currentUser;
+                    if (user == null) return;
+                    
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Triggering test...'), duration: Duration(seconds: 1)),
+                    );
+                    
+                    final result = await NotificationService.sendToSelf(user.id);
+                    if (result == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('✅ Test triggered successfully!'), backgroundColor: Colors.green),
+                      );
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('❌ Error: $result'), backgroundColor: Colors.redAccent),
+                      );
+                    }
+                  },
+                ),
+
                 const SizedBox(height: 40),
                 Center(
                   child: Text(

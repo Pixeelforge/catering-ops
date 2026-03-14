@@ -7,6 +7,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:geolocator/geolocator.dart';
 import 'staff_management_screen.dart';
 import '../../features/dashboard/location_picker_screen.dart';
+import '../../features/inventory/inventory_list_screen.dart';
+import '../../features/orders/orders_tab.dart';
 import '../../features/ledger/screens/kaatha_screen.dart';
 import '../../features/menu/menu_master_screen.dart';
 import '../../features/orders/orders_tab.dart';
@@ -1233,11 +1235,7 @@ class _OwnerViewState extends State<OwnerView> {
           ? OrdersTab(companyId: _companyId ?? '')
           : _selectedIndex == 2
           ? const Center(child: Text('Customers Module (Coming Soon)', style: TextStyle(color: Colors.white54)))
-          : StaffManagementScreen(
-              companyId: _companyId ?? '',
-              onRequestHandled: _fetchRequestCount,
-              key: ValueKey(_pendingCount),
-            ),
+          : StaffManagementScreen(companyId: _companyId ?? ''),
       bottomNavigationBar: BottomNavigationBar(
         backgroundColor: const Color(0xFF161626),
         selectedItemColor: Colors.orangeAccent,
@@ -1261,7 +1259,7 @@ class _OwnerViewState extends State<OwnerView> {
             activeIcon: Icon(Icons.groups),
             label: 'Customers',
           ),
-          BottomNavigationBarItem(
+          const BottomNavigationBarItem(
             icon: Icon(Icons.people_alt_outlined),
             activeIcon: Icon(Icons.people_alt),
             label: 'Staff',

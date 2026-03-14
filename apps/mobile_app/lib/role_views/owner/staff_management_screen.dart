@@ -4,8 +4,6 @@ import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'join_requests_screen.dart';
 
-import 'join_requests_screen.dart';
-
 class StaffManagementScreen extends StatefulWidget {
   final String companyId;
   final VoidCallback? onRequestHandled;
@@ -24,6 +22,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
   final supabase = Supabase.instance.client;
   List<Map<String, dynamic>> _staffMembers = [];
   List<Map<String, dynamic>> _pendingInvitations = [];
+  int _pendingRequestsCount = 0;
   bool _loading = true;
   RealtimeChannel? _subscription;
 
@@ -74,10 +73,18 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
           .select('id, full_name, phone, created_at')
           .eq('company_id', widget.companyId);
 
+      // Fetch pending join requests count
+      final requestsData = await supabase
+          .from('company_join_requests')
+          .select('id')
+          .eq('status', 'pending')
+          .eq('company_id', widget.companyId);
+
       if (mounted) {
         setState(() {
           _staffMembers = List<Map<String, dynamic>>.from(data);
           _pendingInvitations = List<Map<String, dynamic>>.from(invitesData);
+          _pendingRequestsCount = requestsData.length;
 
           // 🔹 Explicit Sorting: Online first, then by name
           _staffMembers.sort((a, b) {
@@ -694,6 +701,78 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
               ),
             );
           },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildJoinRequestsButton() {
+    return InkWell(
+      onTap: () async {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => JoinRequestsScreen(
+              onRequestHandled: _fetchStaff,
+            ),
+          ),
+        );
+        _fetchStaff();
+      },
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.blueAccent.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.blueAccent.withOpacity(0.3)),
+        ),
+        child: Row(
+          children: [
+            Stack(
+              children: [
+                const Icon(Icons.person_add_info_outlined, color: Colors.blueAccent, size: 28),
+                if (_pendingRequestsCount > 0)
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: Container(
+                      width: 12,
+                      height: 12,
+                      decoration: const BoxDecoration(
+                        color: Colors.redAccent,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Join Requests',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  Text(
+                    _pendingRequestsCount == 0
+                        ? 'No pending requests'
+                        : '$_pendingRequestsCount staff members want to join',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.5),
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white24, size: 16),
+          ],
         ),
       ),
     );

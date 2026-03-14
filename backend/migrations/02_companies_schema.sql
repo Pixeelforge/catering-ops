@@ -10,12 +10,15 @@ CREATE TABLE IF NOT EXISTS public.companies (
 ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
 
 -- Anyone authenticated can view a company (so staff can verify ID when joining)
+DROP POLICY IF EXISTS "Anyone can view companies" ON public.companies;
 CREATE POLICY "Anyone can view companies" ON public.companies
     FOR SELECT USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Owners can update their own company" ON public.companies;
 CREATE POLICY "Owners can update their own company" ON public.companies
     FOR UPDATE USING (owner_id = auth.uid());
 
+DROP POLICY IF EXISTS "Owners can insert their own company" ON public.companies;
 CREATE POLICY "Owners can insert their own company" ON public.companies
     FOR INSERT WITH CHECK (owner_id = auth.uid());
 
@@ -24,6 +27,7 @@ ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS company_id UUID REFERENCES 
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS is_online BOOLEAN DEFAULT false;
 
 -- Allow Owners to see profiles of their staff members
+DROP POLICY IF EXISTS "Owners can view their staff" ON public.profiles;
 CREATE POLICY "Owners can view their staff" ON public.profiles
     FOR SELECT USING (
         company_id IN (SELECT id FROM public.companies WHERE owner_id = auth.uid())

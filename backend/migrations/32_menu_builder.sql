@@ -24,6 +24,7 @@ ALTER TABLE public.menu_items ENABLE ROW LEVEL SECURITY;
 -- 🔹 4. RLS POLICIES FOR CATEGORIES
 
 -- Anyone in the company can view menu categories
+DROP POLICY IF EXISTS "Company members can view menu categories" ON public.menu_categories;
 CREATE POLICY "Company members can view menu categories" ON public.menu_categories
     FOR SELECT USING (
         EXISTS (
@@ -34,6 +35,7 @@ CREATE POLICY "Company members can view menu categories" ON public.menu_categori
     );
 
 -- Only owners can insert categories
+DROP POLICY IF EXISTS "Owners can create menu categories" ON public.menu_categories;
 CREATE POLICY "Owners can create menu categories" ON public.menu_categories
     FOR INSERT WITH CHECK (
         EXISTS (
@@ -45,6 +47,7 @@ CREATE POLICY "Owners can create menu categories" ON public.menu_categories
     );
 
 -- Only owners can update their company's categories
+DROP POLICY IF EXISTS "Owners can update menu categories" ON public.menu_categories;
 CREATE POLICY "Owners can update menu categories" ON public.menu_categories
     FOR UPDATE USING (
         EXISTS (
@@ -56,6 +59,7 @@ CREATE POLICY "Owners can update menu categories" ON public.menu_categories
     );
 
 -- Only owners can delete their company's categories
+DROP POLICY IF EXISTS "Owners can delete menu categories" ON public.menu_categories;
 CREATE POLICY "Owners can delete menu categories" ON public.menu_categories
     FOR DELETE USING (
         EXISTS (
@@ -69,6 +73,7 @@ CREATE POLICY "Owners can delete menu categories" ON public.menu_categories
 -- 🔹 5. RLS POLICIES FOR ITEMS
 
 -- Anyone in the company can view menu items
+DROP POLICY IF EXISTS "Company members can view menu items" ON public.menu_items;
 CREATE POLICY "Company members can view menu items" ON public.menu_items
     FOR SELECT USING (
         EXISTS (
@@ -79,6 +84,7 @@ CREATE POLICY "Company members can view menu items" ON public.menu_items
     );
 
 -- Only owners can insert items
+DROP POLICY IF EXISTS "Owners can create menu items" ON public.menu_items;
 CREATE POLICY "Owners can create menu items" ON public.menu_items
     FOR INSERT WITH CHECK (
         EXISTS (
@@ -90,6 +96,7 @@ CREATE POLICY "Owners can create menu items" ON public.menu_items
     );
 
 -- Only owners can update their company's items
+DROP POLICY IF EXISTS "Owners can update menu items" ON public.menu_items;
 CREATE POLICY "Owners can update menu items" ON public.menu_items
     FOR UPDATE USING (
         EXISTS (
@@ -101,6 +108,7 @@ CREATE POLICY "Owners can update menu items" ON public.menu_items
     );
 
 -- Only owners can delete their company's items
+DROP POLICY IF EXISTS "Owners can delete menu items" ON public.menu_items;
 CREATE POLICY "Owners can delete menu items" ON public.menu_items
     FOR DELETE USING (
         EXISTS (

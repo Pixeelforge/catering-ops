@@ -31,15 +31,19 @@ ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 
 -- 🔹 PROFILE POLICIES
 -- Users can view their own profile
+-- 1. Users can view their own profile
+DROP POLICY IF EXISTS "Users can view their own profile" ON public.profiles;
 CREATE POLICY "Users can view their own profile" ON public.profiles
     FOR SELECT USING (auth.uid() = id);
 
--- Users can update their own profile
+-- 2. Users can update their own profile
+DROP POLICY IF EXISTS "Users can update their own profile" ON public.profiles;
 CREATE POLICY "Users can update their own profile" ON public.profiles
     FOR UPDATE USING (auth.uid() = id);
 
 -- 🔹 ORDER POLICIES
--- Owners can view all orders
+-- 3. Owners can view all orders
+DROP POLICY IF EXISTS "Owners can view all orders" ON public.orders;
 CREATE POLICY "Owners can view all orders" ON public.orders
     FOR SELECT USING (
         EXISTS (
@@ -49,7 +53,8 @@ CREATE POLICY "Owners can view all orders" ON public.orders
     );
 
 -- Staff can view orders assigned to them or all (depending on app logic)
--- For now, allow staff to view all orders
+-- 4. Staff can view all orders
+DROP POLICY IF EXISTS "Staff can view all orders" ON public.orders;
 CREATE POLICY "Staff can view all orders" ON public.orders
     FOR SELECT USING (
         EXISTS (
@@ -58,7 +63,8 @@ CREATE POLICY "Staff can view all orders" ON public.orders
         )
     );
 
--- Only owners can create/edit orders
+-- 5. Only owners can create/edit orders
+DROP POLICY IF EXISTS "Only owners can manage orders" ON public.orders;
 CREATE POLICY "Only owners can manage orders" ON public.orders
     FOR ALL USING (
         EXISTS (
@@ -81,8 +87,11 @@ BEGIN
     );
     RETURN NEW;
 END;
+    RETURN NEW;
+END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users
     FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();

@@ -15,14 +15,17 @@ ALTER TABLE public.company_join_requests ENABLE ROW LEVEL SECURITY;
 
 -- 🔹 3. RLS POLICIES
 -- Staff can view their own requests
+DROP POLICY IF EXISTS "Staff can view own requests" ON public.company_join_requests;
 CREATE POLICY "Staff can view own requests" ON public.company_join_requests
     FOR SELECT USING (auth.uid() = staff_id);
 
 -- Staff can create requests
+DROP POLICY IF EXISTS "Staff can create requests" ON public.company_join_requests;
 CREATE POLICY "Staff can create requests" ON public.company_join_requests
     FOR INSERT WITH CHECK (auth.uid() = staff_id);
 
 -- Owners can view requests for their company
+DROP POLICY IF EXISTS "Owners can view requests for their company" ON public.company_join_requests;
 CREATE POLICY "Owners can view requests for their company" ON public.company_join_requests
     FOR SELECT USING (
         EXISTS (
@@ -33,6 +36,7 @@ CREATE POLICY "Owners can view requests for their company" ON public.company_joi
     );
 
 -- Owners can update (accept/reject) requests for their company
+DROP POLICY IF EXISTS "Owners can update requests for their company" ON public.company_join_requests;
 CREATE POLICY "Owners can update requests for their company" ON public.company_join_requests
     FOR UPDATE USING (
         EXISTS (
@@ -92,6 +96,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+DROP TRIGGER IF EXISTS on_join_request_accepted ON public.company_join_requests;
 CREATE TRIGGER on_join_request_accepted
     AFTER UPDATE ON public.company_join_requests
     FOR EACH ROW

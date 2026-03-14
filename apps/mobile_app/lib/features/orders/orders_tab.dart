@@ -1922,28 +1922,31 @@ Please ensure timely delivery!
 
                           if (assignmentType == 'specific') {
                             // Scenario 4: Direct Assignment
-                            await NotificationService.sendNotification(
+                            final res = await NotificationService.sendNotification(
                               playerIds: [selectedStaffId],
                               title: 'New Order Assigned',
                               message: 'You have been assigned to: $clientName ($eventTime)',
                               data: {'type': 'direct_assignment', 'order_id': orderId},
                             );
+                            _toast(res == null ? 'Push notification triggered!' : 'Push failed: $res');
                           } else if (assignmentType == 'direct_claim') {
                             // Scenario 2: Fastest Claim
-                            await NotificationService.sendToCompany(
+                            final res = await NotificationService.sendToCompany(
                               companyId: widget.companyId,
                               title: 'New Order Available!',
                               message: 'Fastest Claim: $clientName ($eventTime) is available for ₹$fare',
                               data: {'type': 'fastest_claim', 'order_id': orderId},
                             );
+                            _toast(res == null ? 'Push notification triggered!' : 'Push failed: $res');
                           } else if (assignmentType == 'open') {
                             // Scenario 3: Bidding
-                            await NotificationService.sendToCompany(
+                            final res = await NotificationService.sendToCompany(
                               companyId: widget.companyId,
                               title: 'New Bidding Opportunity',
                               message: 'Place your bid for: $clientName ($eventTime). Base fare: ₹$fare',
                               data: {'type': 'bidding', 'order_id': orderId},
                             );
+                            _toast(res == null ? 'Push notification triggered!' : 'Push failed: $res');
                           }
                         }
                       }

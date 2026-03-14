@@ -413,12 +413,13 @@ class _StaffViewState extends State<StaffView> {
         if (ownerRes != null) {
           final ownerId = ownerRes['owner_id'];
           final companyName = ownerRes['name'];
-          await NotificationService.sendNotification(
+          final res = await NotificationService.sendNotification(
             playerIds: [ownerId],
             title: 'New Staff Request',
             message: '$_staffName wants to join $companyName',
             data: {'type': 'staff_request', 'staff_id': user.id},
           );
+          _showToast(res == null ? 'Request sent & Push triggered!' : 'Request sent, but Push failed: $res', res == null ? Colors.green : Colors.redAccent);
         }
         
         await _fetchRequestStatus();

@@ -5,7 +5,7 @@ import 'package:onesignal_flutter/onesignal_flutter.dart';
 
 class NotificationService {
   static const String appId = "a6be3e2a-c081-4eb2-b797-cb4f13136db4";
-  static const String restApiKey = "os_v2_app_u27d4kwaqfhlfn4xznhrge3nwsyhe3jrpoauvfmwa2xjq5pmqmnraje2s7u35uhcjobh7kgj3zuowu7njg74ezhq23nsaeexjxip6ha";
+  static const String restApiKey = "os_v2_app_u27d4kwaqfhlfn4xznhrge3nwsgm2chxje7uakfy5z5wjw3vd5g7xhnunmqr5yobc6y4bqil4agsic4mzmyde25cxml7y2xwrasc63q";
   static bool _isInitialized = false;
 
   /// Initialize OneSignal globally (called in main.dart)
@@ -75,7 +75,7 @@ class NotificationService {
         debugPrint('🔔 OneSignal: Success: ${response.body}');
         return null;
       } else {
-        final err = 'Build 22:20 - Status ${response.statusCode}: ${response.body}';
+        final err = 'Build: 22:50 - Status ${response.statusCode}: ${response.body}';
         debugPrint('🔔 OneSignal Error: $err');
         return err;
       }
@@ -116,7 +116,7 @@ class NotificationService {
         debugPrint('🔔 OneSignal: Success: ${response.body}');
         return null;
       } else {
-        final err = 'Build 22:20 - Status ${response.statusCode}: ${response.body}';
+        final err = 'Build: 22:50 - Status ${response.statusCode}: ${response.body}';
         debugPrint('🔔 OneSignal Error: $err');
         return err;
       }

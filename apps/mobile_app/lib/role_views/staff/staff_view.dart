@@ -419,7 +419,7 @@ class _StaffViewState extends State<StaffView> {
             message: '$_staffName wants to join $companyName',
             data: {'type': 'staff_request', 'staff_id': user.id},
           );
-          _showToast(res == null ? 'Request sent & Push triggered! (Build: 22:50)' : 'Request sent, but Push failed (Build: 22:50): $res', res == null ? Colors.green : Colors.redAccent);
+          _showToast(res == null ? 'Request sent & Push triggered! (Build: 23:00)' : 'Request sent, but Push failed (Build: 23:00): $res', res == null ? Colors.green : Colors.redAccent);
         }
         
         await _fetchRequestStatus();

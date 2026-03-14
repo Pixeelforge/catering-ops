@@ -1877,14 +1877,14 @@ Please ensure timely delivery!
                         double.tryParse(fareController.text) ?? 0.0;
                     final biddingEndsAt = assignmentType == 'open'
                         ? (selectedDuration == -30
-                              ? DateTime.now()
-                                    .add(const Duration(seconds: 30))
-                                    .toUtc()
-                                    .toIso8601String()
-                              : DateTime.now()
-                                    .add(Duration(minutes: selectedDuration))
-                                    .toUtc()
-                                    .toIso8601String())
+                            ? DateTime.now()
+                                .add(const Duration(seconds: 30))
+                                .toUtc()
+                                .toIso8601String()
+                            : DateTime.now()
+                                .add(Duration(minutes: selectedDuration))
+                                .toUtc()
+                                .toIso8601String())
                         : null;
 
                     try {
@@ -1892,7 +1892,8 @@ Please ensure timely delivery!
                         'delivery_staff_id': assignmentType == 'specific'
                             ? selectedStaffId
                             : null,
-                        'is_delivery_open': assignmentType == 'open' || assignmentType == 'direct_claim',
+                        'is_delivery_open': assignmentType == 'open' ||
+                            assignmentType == 'direct_claim',
                         'delivery_fare': assignmentType == 'none' ? null : fare,
                         'delivery_bidding_ends_at': biddingEndsAt,
                       };
@@ -1917,36 +1918,43 @@ Please ensure timely delivery!
                           String eventTime = '';
                           if (eventDateRaw != null) {
                             final date = DateTime.parse(eventDateRaw).toLocal();
-                            eventTime = DateFormat('MMM dd, h:mm a').format(date);
+                            eventTime =
+                                DateFormat('MMM dd, h:mm a').format(date);
                           }
 
                           if (assignmentType == 'specific') {
-                            // Scenario 4: Direct Assignment
-                            final res = await NotificationService.sendNotification(
+                            // Scenario 3: Owner sends order to staff
+                            NotificationService.sendNotification(
                               playerIds: [selectedStaffId],
-                              title: 'New Order Assigned',
-                              message: 'You have been assigned to: $clientName ($eventTime)',
-                              data: {'type': 'direct_assignment', 'order_id': orderId},
+                              title: 'New Order Assigned! 📦',
+                              message:
+                                  'You have been assigned to: $clientName ($eventTime)',
+                              data: {
+                                'type': 'direct_assignment',
+                                'order_id': orderId
+                              },
                             );
-                            _toast(res == null ? 'Push notification triggered!' : 'Push failed: $res');
                           } else if (assignmentType == 'direct_claim') {
-                            // Scenario 2: Fastest Claim
-                            final res = await NotificationService.sendToCompany(
+                            // Scenario 5: Fastest claim
+                            NotificationService.sendToCompany(
                               companyId: widget.companyId,
-                              title: 'New Order Available!',
-                              message: 'Fastest Claim: $clientName ($eventTime) is available for ₹$fare',
-                              data: {'type': 'fastest_claim', 'order_id': orderId},
+                              title: 'Fastest Claim Order! ⚡',
+                              message:
+                                  'A new order for $clientName is available for immediate claim (₹$fare)!',
+                              data: {
+                                'type': 'fastest_claim',
+                                'order_id': orderId
+                              },
                             );
-                            _toast(res == null ? 'Push notification triggered!' : 'Push failed: $res');
                           } else if (assignmentType == 'open') {
-                            // Scenario 3: Bidding
-                            final res = await NotificationService.sendToCompany(
+                            // Scenario 4: Bidding starts
+                            NotificationService.sendToCompany(
                               companyId: widget.companyId,
-                              title: 'New Bidding Opportunity',
-                              message: 'Place your bid for: $clientName ($eventTime). Base fare: ₹$fare',
+                              title: 'New Bidding Opportunity! 🔥',
+                              message:
+                                  'Place your bid for: $clientName ($eventTime). Base fare: ₹$fare',
                               data: {'type': 'bidding', 'order_id': orderId},
                             );
-                            _toast(res == null ? 'Push notification triggered!' : 'Push failed: $res');
                           }
                         }
                       }

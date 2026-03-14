@@ -1527,6 +1527,18 @@ class _StaffViewState extends State<StaffView> {
             'order_status': 'completed',
           })
           .eq('id', order['id']);
+
+      // Scenario 6: Notify Owner of delivery
+      final ownerId = order['owner_id'];
+      if (ownerId != null) {
+        await NotificationService.sendNotification(
+          playerIds: [ownerId],
+          title: 'Order Delivered! ✅',
+          message: '${order['client_name'] ?? 'An order'} has been delivered by $_staffName.',
+          data: {'type': 'order_delivered', 'order_id': order['id']},
+        );
+      }
+
       _showToast('Delivery confirmed! ✅', Colors.greenAccent);
       _fetchAssignedOrders();
     } catch (e) {

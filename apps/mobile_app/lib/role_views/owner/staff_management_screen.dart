@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:permission_handler/permission_handler.dart';
+import '../../services/notification_service.dart';
 
 class StaffManagementScreen extends StatefulWidget {
   final String companyId;
@@ -581,6 +582,25 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
           .from('profiles')
           .update({'company_id': null})
           .eq('id', staffId);
+
+      // Scenario 7: Notify Staff they've been removed
+      await NotificationService.sendNotification(
+        playerIds: [staffId],
+        title: 'Team Update',
+        message: 'Your association with the company has been ended.',
+        data: {'type': 'staff_removed'},
+      );
+
+      // Notify Owner that staff has "left" (removed successfully)
+      final owner = supabase.auth.currentUser;
+      if (owner != null) {
+        await NotificationService.sendNotification(
+          playerIds: [owner.id],
+          title: 'Staff Removed 👤',
+          message: '${staffName ?? 'A staff member'} has been removed from your team.',
+          data: {'type': 'staff_removed_owner'},
+        );
+      }
 
       if (mounted) {
         setState(() {

@@ -968,18 +968,6 @@ class _OwnerViewState extends State<OwnerView> {
           ),
           IconButton(
             onPressed: () async {
-              final user = supabase.auth.currentUser;
-              if (user != null) {
-                final res = await NotificationService.sendToSelf(user.id);
-                final msg = res == null ? 'Test push triggered!' : 'Test push failed: $res';
-                _toast(msg);
-              }
-            },
-            icon: const Icon(Icons.send_rounded, color: Colors.blueAccent),
-            tooltip: 'Test Push',
-          ),
-          IconButton(
-            onPressed: () async {
               final user = Supabase.instance.client.auth.currentUser;
               if (user != null) {
                 try {

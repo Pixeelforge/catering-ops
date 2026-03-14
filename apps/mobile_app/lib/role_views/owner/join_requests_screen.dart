@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:audioplayers/audioplayers.dart';
+import '../../services/notification_service.dart';
 
 class JoinRequestsScreen extends StatefulWidget {
   const JoinRequestsScreen({super.key, this.onRequestHandled});
@@ -138,6 +139,22 @@ class _JoinRequestsScreenState extends State<JoinRequestsScreen> {
           .from('company_join_requests')
           .update({'status': status})
           .eq('id', requestId);
+
+      if (status == 'accepted') {
+        // Scenario 2: Notify Staff when their request is accepted
+        // First get the staff's player_id or use their user_id
+        final reqData = _requests.firstWhere((r) => r['id'] == requestId, orElse: () => {});
+        final staffId = reqData['profiles']?['id'];
+        
+        if (staffId != null) {
+          await NotificationService.sendNotification(
+            playerIds: [staffId],
+            title: 'Request Accepted!',
+            message: 'You have been added to the company team. Welcome!',
+            data: {'type': 'request_accepted'},
+          );
+        }
+      }
 
       _toast(status == 'accepted' ? 'Staff accepted!' : 'Request rejected.');
       // Notify owner_view to refresh badge count immediately

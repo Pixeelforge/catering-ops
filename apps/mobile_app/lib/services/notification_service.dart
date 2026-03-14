@@ -5,7 +5,7 @@ import 'package:onesignal_flutter/onesignal_flutter.dart';
 
 class NotificationService {
   static const String appId = "e03d985c-4050-41d6-88fd-092232fa325b";
-  static const String restApiKey = "os_v2_app_4a6zqxcakba5nch5berdf6rsln7csm6bakjuxanhzhiglq4s2dd6hjwsevcyhurozruzg4gxmudcomcnswrixp4a4hp7kkwhj2jrzwq";
+  static const String restApiKey = "os_v2_app_4a6zqxcakba5nch5berdf6rslon4k6lho2re6i5w7j52a35us367wjy7m5vbvjtpd2z7izkv2bdghmdu2ez7g6ehgl3nqxzi6hy7ycy";
   static bool _isInitialized = false;
 
   /// Initialize OneSignal globally (called in main.dart)

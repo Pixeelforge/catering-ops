@@ -38,9 +38,9 @@ class NotificationService {
   }
 
   /// Helper to send a test notification to the current user
-  static Future<void> sendToSelf(String userId) async {
+  static Future<String?> sendToSelf(String userId) async {
     debugPrint('🔔 OneSignal: Sending test notification to $userId');
-    await sendNotification(
+    return await sendNotification(
       playerIds: [userId],
       title: 'Test Notification',
       message: 'If you see this, push notifications are working! 🎉',

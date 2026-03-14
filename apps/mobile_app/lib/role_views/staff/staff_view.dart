@@ -805,6 +805,19 @@ class _StaffViewState extends State<StaffView> {
         automaticallyImplyLeading: false,
         actions: [
           IconButton(
+            onPressed: () async {
+              final user = supabase.auth.currentUser;
+              if (user != null) {
+                final res = await NotificationService.sendToSelf(user.id);
+                final msg = res == null ? 'Test push triggered!' : 'Test push failed: $res';
+                final color = res == null ? Colors.green : Colors.redAccent;
+                _showToast(msg, color);
+              }
+            },
+            icon: const Icon(Icons.send_rounded, color: Colors.blueAccent),
+            tooltip: 'Test Push',
+          ),
+          IconButton(
             onPressed: _logout,
             icon: const Icon(Icons.logout, color: Colors.white70),
           ),

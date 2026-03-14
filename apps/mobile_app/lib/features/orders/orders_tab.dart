@@ -45,9 +45,12 @@ class _OrdersTabState extends State<OrdersTab> {
       dateStr = DateFormat('MMM dd, yyyy').format(date);
     }
 
-    // Format Time
-    String timeStr = 'Time Not Set';
-    if (order['event_time'] != null && order['event_time'].toString().isNotEmpty && order['event_time'] != 'TBD') {
+    // Format Time (Default to current time if missing)
+    String timeStr = DateFormat('h:mm a').format(DateTime.now());
+    if (order['event_time'] != null && 
+        order['event_time'].toString().isNotEmpty && 
+        order['event_time'] != 'TBD' && 
+        order['event_time'] != 'Time Not Set') {
       try {
         final timeParts = order['event_time'].toString().split(':');
         if (timeParts.length >= 2) {

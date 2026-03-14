@@ -47,6 +47,11 @@ class _OwnerViewState extends State<OwnerView> {
   @override
   void initState() {
     super.initState();
+    // 🔹 Handle Deep Linking (Target Tab)
+    if (NotificationService.targetTab != 0) {
+      _selectedIndex = NotificationService.targetTab;
+      NotificationService.targetTab = 0; // Reset
+    }
     _fetchOwnerProfile();
   }
 

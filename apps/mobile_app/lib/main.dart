@@ -8,6 +8,8 @@ import 'role_views/owner/join_requests_screen.dart';
 import 'core/env.dart';
 import 'services/notification_service.dart';
 
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
 void main() async {
   try {
     WidgetsFlutterBinding.ensureInitialized();
@@ -43,6 +45,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       title: 'Catering Ops',
       theme: ThemeData(

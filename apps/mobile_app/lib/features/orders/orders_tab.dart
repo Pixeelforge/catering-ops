@@ -38,30 +38,37 @@ class _OrdersTabState extends State<OrdersTab> {
       formattedPhone = '+$formattedPhone'; // basic fallback
     }
 
-    // Format Date
+    // Format Date & Time
     String dateStr = 'Date Not Set';
+    String timeStr = 'Time Not Set';
+    
     if (order['event_date'] != null) {
-      final date = DateTime.parse(order['event_date']).toLocal();
-      dateStr = DateFormat('MMM dd, yyyy').format(date);
+      try {
+        final date = DateTime.parse(order['event_date']).toLocal();
+        dateStr = DateFormat('MMM dd, yyyy').format(date);
+        timeStr = DateFormat('h:mm a').format(date);
+      } catch (e) {
+        debugPrint('Error parsing event_date: $e');
+      }
     }
 
-    // Format Time (Default to current time if missing)
-    String timeStr = DateFormat('h:mm a').format(DateTime.now());
+    // Override Time if event_time is explicitly set and not TBD
     if (order['event_time'] != null && 
         order['event_time'].toString().isNotEmpty && 
         order['event_time'] != 'TBD' && 
         order['event_time'] != 'Time Not Set') {
       try {
-        final timeParts = order['event_time'].toString().split(':');
-        if (timeParts.length >= 2) {
-          final now = DateTime.now();
-          final time = DateTime(now.year, now.month, now.day, int.parse(timeParts[0]), int.parse(timeParts[1]));
-          timeStr = DateFormat('h:mm a').format(time);
+        final timeValue = order['event_time'].toString();
+        if (timeValue.contains(':')) {
+           final parts = timeValue.split(':');
+           final now = DateTime.now();
+           final time = DateTime(now.year, now.month, now.day, int.parse(parts[0]), int.parse(parts[1]));
+           timeStr = DateFormat('h:mm a').format(time);
         } else {
-          timeStr = order['event_time'];
+           timeStr = timeValue;
         }
-      } catch (e) {
-        timeStr = order['event_time'];
+      } catch (_) {
+        timeStr = order['event_time'].toString();
       }
     }
 

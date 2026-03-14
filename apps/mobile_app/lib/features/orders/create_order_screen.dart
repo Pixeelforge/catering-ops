@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:permission_handler/permission_handler.dart';
+import '../../services/notification_service.dart';
 
 class CreateOrderScreen extends StatefulWidget {
   final String companyId;
@@ -721,6 +722,46 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
         'order_status': 'upcoming',
         'is_khata_saved': _orderType == 'middleman' && _selectedMiddleMan != null,
       });
+
+      // 🔹 Schedule Multi-Tier Reminder Notifications
+      try {
+        final eventDate = DateTime.parse(eventDateTime);
+        final now = DateTime.now().toUtc();
+        final user = _supabase.auth.currentUser;
+        
+        if (user != null) {
+          final clientName = _clientNameController.text.trim();
+          final formattedTime = DateFormat('h:mm a').format(eventDate.toLocal());
+
+          // 1. Standard Reminder (6 hours before)
+          final reminder6h = eventDate.subtract(const Duration(hours: 6));
+          if (reminder6h.isAfter(now)) {
+            NotificationService.sendNotification(
+              playerIds: [user.id],
+              title: 'Upcoming Order Reminder! ⏰',
+              message: 'Reminder: Order for $clientName is scheduled for $formattedTime.',
+              data: {'type': 'order_reminder'},
+              color: 'FFFF9800', // Orange
+              sendAfter: reminder6h,
+            );
+          }
+
+          // 2. Emergency Reminder (2 hours before)
+          final reminder2h = eventDate.subtract(const Duration(hours: 2));
+          if (reminder2h.isAfter(now)) {
+            NotificationService.sendNotification(
+              playerIds: [user.id],
+              title: '🚨 EMERGENCY: Order Starting Soon! 🚨',
+              message: 'URGENT: Order for $clientName starts in 2 hours ($formattedTime)!',
+              data: {'type': 'order_reminder'},
+              color: 'FFF44336', // Red
+              sendAfter: reminder2h,
+            );
+          }
+        }
+      } catch (e) {
+        debugPrint('Error scheduling reminders: $e');
+      }
 
       // Auto-save to Khata if middleman order is pending payment
       if (_orderType == 'middleman' &&

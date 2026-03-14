@@ -578,13 +578,23 @@ class _StaffViewState extends State<StaffView> {
 
       // 3. Send Notification to Owner
       if (ownerId != null) {
+        // DB Notification
         await supabase.from('notifications').insert({
           'owner_id': ownerId,
           'company_id': _companyId,
-          'title': 'Staff Left',
+          'title': 'Staff Left 👤',
           'message': '${_staffName ?? 'A staff member'} has left the company.',
           'type': 'staff_left',
         });
+
+        // Push Notification
+        await NotificationService.sendNotification(
+          playerIds: [ownerId],
+          title: 'Staff Member Left 👤',
+          message: '${_staffName ?? 'A staff member'} has left your team.',
+          data: {'type': 'staff_left'},
+          color: 'FFFF5722', // Deep Orange
+        );
       }
 
       _showToast('Successfully left the company', Colors.green);
@@ -805,19 +815,6 @@ class _StaffViewState extends State<StaffView> {
         ),
         automaticallyImplyLeading: false,
         actions: [
-          IconButton(
-            onPressed: () async {
-              final user = supabase.auth.currentUser;
-              if (user != null) {
-                final res = await NotificationService.sendToSelf(user.id);
-                final msg = res == null ? 'Test push triggered!' : 'Test push failed: $res';
-                final color = res == null ? Colors.green : Colors.redAccent;
-                _showToast(msg, color);
-              }
-            },
-            icon: const Icon(Icons.send_rounded, color: Colors.blueAccent),
-            tooltip: 'Test Push',
-          ),
           IconButton(
             onPressed: _logout,
             icon: const Icon(Icons.logout, color: Colors.white70),

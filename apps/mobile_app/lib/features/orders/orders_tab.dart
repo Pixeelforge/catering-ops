@@ -39,15 +39,15 @@ class _OrdersTabState extends State<OrdersTab> {
     }
 
     // Format Date
-    String dateStr = 'TBD';
+    String dateStr = 'Date Not Set';
     if (order['event_date'] != null) {
       final date = DateTime.parse(order['event_date']).toLocal();
       dateStr = DateFormat('MMM dd, yyyy').format(date);
     }
 
     // Format Time
-    String timeStr = 'TBD';
-    if (order['event_time'] != null) {
+    String timeStr = 'Time Not Set';
+    if (order['event_time'] != null && order['event_time'].toString().isNotEmpty && order['event_time'] != 'TBD') {
       try {
         final timeParts = order['event_time'].toString().split(':');
         if (timeParts.length >= 2) {
@@ -74,13 +74,27 @@ class _OrdersTabState extends State<OrdersTab> {
       }
     }
 
+    // Conditionally show Guests or Menu Items
+    String guestLine = '';
+    if (menuItems.isEmpty && order['guest_count'] != null) {
+      guestLine = '👥 Guests: ${order['guest_count']}\n';
+    }
+
+    // Location & Map Link
+    final String address = order['venue_address'] ?? 'N/A';
+    String locationStr = '📍 Location: $address';
+    if (address != 'N/A') {
+      final encodedAddress = Uri.encodeComponent(address);
+      locationStr += '\n🗺️ Map Link: https://www.google.com/maps/search/?api=1&query=$encodedAddress';
+    }
+
     final String message = '''
 Hello! Here are the delivery details for your upcoming order:
 👤 Client: ${order['client_name'] ?? 'N/A'}
 📅 Date: $dateStr
 ⌚ Time: $timeStr
-📍 Location: ${order['venue_address'] ?? 'N/A'}
-👥 Guests: ${order['guest_count'] ?? 'N/A'}$itemsStr
+$locationStr
+$guestLine$itemsStr
 ₹ Fare: ₹${order['delivery_fare'] ?? 'N/A'}
 
 Please ensure timely delivery!

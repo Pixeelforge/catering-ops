@@ -14,6 +14,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   final _companyNameCtrl = TextEditingController();
+  final _companyAddressCtrl = TextEditingController();
 
   bool _loading = false;
   String _role = 'staff'; // 'owner' or 'staff'
@@ -24,6 +25,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   String? _emailError;
   String? _passwordError;
   String? _companyError;
+  String? _companyAddressError;
 
   bool _validate() {
     bool isValid = true;
@@ -39,6 +41,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       _emailError = null;
       _passwordError = null;
       _companyError = null;
+      _companyAddressError = null;
     });
 
     if (fullName.length < 3) {
@@ -63,9 +66,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
       isValid = false;
     }
 
-    if (_role == 'owner' && companyName.isEmpty) {
-      setState(() => _companyError = 'Company name is required for owners');
-      isValid = false;
+    if (_role == 'owner') {
+      if (companyName.isEmpty) {
+        setState(() => _companyError = 'Company name is required for owners');
+        isValid = false;
+      }
+      if (_companyAddressCtrl.text.trim().isEmpty) {
+        setState(() => _companyAddressError = 'Company address is required for owners');
+        isValid = false;
+      }
     }
 
     return isValid;
@@ -78,6 +87,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
     _companyNameCtrl.dispose();
+    _companyAddressCtrl.dispose();
     super.dispose();
   }
 
@@ -87,6 +97,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     final email = _emailCtrl.text.trim();
     final password = _passwordCtrl.text;
     final companyName = _companyNameCtrl.text.trim();
+    final companyAddress = _companyAddressCtrl.text.trim();
 
     if (!_validate()) return;
 
@@ -121,7 +132,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
           'full_name': fullName,
           'phone': phone,
           'role': _role,
-          if (_role == 'owner') 'company_name': companyName,
+          if (_role == 'owner') ...{
+            'company_name': companyName,
+            'company_address': companyAddress,
+          },
         },
       );
 
@@ -261,6 +275,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           label: 'Company Name',
                           icon: Icons.business_outlined,
                           errorText: _companyError,
+                        ),
+                        const SizedBox(height: 16),
+                        _buildTextField(
+                          controller: _companyAddressCtrl,
+                          label: 'Company Address',
+                          icon: Icons.location_on_outlined,
+                          errorText: _companyAddressError,
                         ),
                         const SizedBox(height: 24),
                       ],

@@ -204,6 +204,97 @@ class _OwnerViewState extends State<OwnerView> {
     );
   }
 
+  void _showAddCompanyDialog() {
+    final nameCtrl = TextEditingController();
+    final addressCtrl = TextEditingController();
+    bool isLoading = false;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            backgroundColor: const Color(0xFF161626),
+            title: const Text('Add New Company', style: TextStyle(color: Colors.white)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameCtrl,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: 'Company Name',
+                    labelStyle: const TextStyle(color: Colors.white60),
+                    filled: true,
+                    fillColor: Colors.white.withOpacity(0.05),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: addressCtrl,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: 'Company Address',
+                    labelStyle: const TextStyle(color: Colors.white60),
+                    filled: true,
+                    fillColor: Colors.white.withOpacity(0.05),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: isLoading ? null : () => Navigator.pop(context),
+                child: const Text('Cancel', style: TextStyle(color: Colors.white60)),
+              ),
+              ElevatedButton(
+                onPressed: isLoading
+                    ? null
+                    : () async {
+                        final name = nameCtrl.text.trim();
+                        final address = addressCtrl.text.trim();
+
+                        if (name.isEmpty || address.isEmpty) {
+                          _toast('Please fill in all fields');
+                          return;
+                        }
+
+                        setState(() => isLoading = true);
+
+                        try {
+                          final user = supabase.auth.currentUser;
+                          if (user == null) throw Exception('Not logged in');
+
+                          await supabase.from('companies').insert({
+                            'owner_id': user.id,
+                            'name': name,
+                            'address': address,
+                          });
+
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                            _toast('Company added successfully!');
+                          }
+                        } catch (e) {
+                          _toast('Error adding company: $e');
+                          setState(() => isLoading = false);
+                        }
+                      },
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.orangeAccent),
+                child: isLoading
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Text('Add', style: TextStyle(color: Colors.black)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   void _showNotificationsSheet() {
     setState(() => _unreadNotificationsCount = 0);
     // Mark all as read
@@ -896,6 +987,67 @@ class _OwnerViewState extends State<OwnerView> {
                         ),
                         Text(
                           'Khata ledger & middleman accounts',
+                          style: TextStyle(color: Colors.white54, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    color: Colors.white24,
+                    size: 16,
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 30),
+
+          // Add New Company Action
+          InkWell(
+            onTap: _showAddCompanyDialog,
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.purpleAccent.withOpacity(0.15),
+                    Colors.purpleAccent.withOpacity(0.05),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.purpleAccent.withOpacity(0.2)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.purpleAccent.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.domain_add,
+                      color: Colors.purpleAccent,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Add New Company',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        Text(
+                          'Create another company profile',
                           style: TextStyle(color: Colors.white54, fontSize: 13),
                         ),
                       ],

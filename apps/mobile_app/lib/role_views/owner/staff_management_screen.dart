@@ -730,7 +730,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
           children: [
             Stack(
               children: [
-                const Icon(Icons.person_add_info_outlined, color: Colors.blueAccent, size: 28),
+                const Icon(Icons.person_add_outlined, color: Colors.blueAccent, size: 28),
                 if (_pendingRequestsCount > 0)
                   Positioned(
                     right: 0,

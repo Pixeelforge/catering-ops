@@ -40,7 +40,7 @@ jobs:
           flutter build apk --release
           
       - name: Upload APK
-        uses: actions/upload-artifact@v4 # Upgraded to v4
+        uses: actions/upload-artifact@v4
         with:
-          name: apk-release
+          name: catering-ops-app-${{ github.ref_name }}-${{ github.run_number }}
           path: apps/mobile_app/build/app/outputs/flutter-apk/app-release.apk

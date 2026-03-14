@@ -14,6 +14,7 @@ ALTER TABLE public.middle_men ENABLE ROW LEVEL SECURITY;
 
 -- Policies for middle_men
 -- 1. Anyone in the same company can view middlemen
+DROP POLICY IF EXISTS "Users can view middlemen of their company" ON public.middle_men;
 CREATE POLICY "Users can view middlemen of their company"
     ON public.middle_men FOR SELECT
     USING (
@@ -30,6 +31,7 @@ CREATE POLICY "Users can view middlemen of their company"
 -- User said: "if the phone is lost if he tries to login to another account then it will be a big problem"
 -- This implies the data should be available for the same "Account" (which is linked to a Company).
 
+DROP POLICY IF EXISTS "Users in company can manage middlemen" ON public.middle_men;
 CREATE POLICY "Users in company can manage middlemen"
     ON public.middle_men FOR ALL
     USING (
@@ -49,6 +51,7 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
+DROP TRIGGER IF EXISTS update_middle_men_updated_at ON public.middle_men;
 CREATE TRIGGER update_middle_men_updated_at
     BEFORE UPDATE ON public.middle_men
     FOR EACH ROW

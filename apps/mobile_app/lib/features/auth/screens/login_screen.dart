@@ -29,13 +29,12 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     final emailRegExp = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
-    final phoneRegExp = RegExp(r'^\d{10}$');
-    
-    bool isPhone = phoneRegExp.hasMatch(input);
     bool isEmail = emailRegExp.hasMatch(input);
 
-    if (!isEmail && !isPhone) {
-      setState(() => _error = "Please enter a valid email or 10-digit phone");
+    // If it's not a valid email, treat it as a phone number / username
+    // Remove strict 10-digit length requirement, allowing flexible usernames or phones
+    if (!isEmail && input.length < 3) {
+      setState(() => _error = "Please enter a valid email, phone number, or username");
       return;
     }
 
@@ -45,8 +44,8 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      // If user typed a phone number, append the dummy domain to login
-      final loginEmail = isPhone ? '$input@catering.app' : input;
+      // If user typed a phone number or username, append the dummy domain to login
+      final loginEmail = isEmail ? input : '$input@catering.app';
       await _auth.signIn(loginEmail, password);
 
       final user = Supabase.instance.client.auth.currentUser;
@@ -165,7 +164,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     children: [
                       _buildTextField(
                         controller: _email,
-                        label: 'Email or Phone Number',
+                        label: 'Phone Number, Username, or Email',
                         icon: Icons.person_outline,
                         keyboardType: TextInputType.emailAddress,
                       ),

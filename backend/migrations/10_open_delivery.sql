@@ -2,6 +2,7 @@
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS is_delivery_open BOOLEAN DEFAULT false;
 
 -- Allow staff to select orders that are open for claiming for their company
+DROP POLICY IF EXISTS "Staff can view open deliveries for their company" ON public.orders;
 CREATE POLICY "Staff can view open deliveries for their company" ON public.orders
     FOR SELECT
     USING (
@@ -15,6 +16,7 @@ CREATE POLICY "Staff can view open deliveries for their company" ON public.order
 
 -- Allow staff to update (claim) an open order
 -- They can only claim if it's currently open and unassigned
+DROP POLICY IF EXISTS "Staff can claim open deliveries" ON public.orders;
 CREATE POLICY "Staff can claim open deliveries" ON public.orders
     FOR UPDATE
     USING (

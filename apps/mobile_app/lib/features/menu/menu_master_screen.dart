@@ -307,7 +307,7 @@ class _MenuMasterScreenState extends State<MenuMasterScreen> {
                              ),
                            ...items.map((item) => ListTile(
                              leading: Icon(
-                               Icons.circle_stop,
+                               Icons.stop_circle,
                                color: item['is_veg'] ? Colors.green : Colors.red,
                                size: 20,
                              ),

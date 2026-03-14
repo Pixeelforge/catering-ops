@@ -415,9 +415,10 @@ class _StaffViewState extends State<StaffView> {
           final companyName = ownerRes['name'];
           final res = await NotificationService.sendNotification(
             playerIds: [ownerId],
-            title: 'New Staff Request',
+            title: 'New Staff Request 👤',
             message: '$_staffName wants to join $companyName',
             data: {'type': 'staff_request', 'staff_id': user.id},
+            color: 'FFD4A237', // Gold/Amber
           );
           _showToast(res == null ? 'Request sent & Push triggered! (Build: 23:00)' : 'Request sent, but Push failed (Build: 23:00): $res', res == null ? Colors.green : Colors.redAccent);
         }
@@ -1534,8 +1535,10 @@ class _StaffViewState extends State<StaffView> {
         await NotificationService.sendNotification(
           playerIds: [ownerId],
           title: 'Order Delivered! ✅',
-          message: '${order['client_name'] ?? 'An order'} has been delivered by $_staffName.',
+          message:
+              'Order for ${order['client_name']} has been marked as delivered by $_staffName.',
           data: {'type': 'order_delivered', 'order_id': order['id']},
+          color: 'FF4CAF50', // Green
         );
       }
 

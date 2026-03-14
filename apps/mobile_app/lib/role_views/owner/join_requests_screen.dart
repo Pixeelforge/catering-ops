@@ -149,9 +149,10 @@ class _JoinRequestsScreenState extends State<JoinRequestsScreen> {
         if (staffId != null) {
           await NotificationService.sendNotification(
             playerIds: [staffId],
-            title: 'Request Accepted!',
-            message: 'You have been added to the company team. Welcome!',
+            title: 'Request Accepted! 🎉',
+            message: 'You have been added to the company team. Welcome aboard!',
             data: {'type': 'request_accepted'},
+            color: 'FF4CAF50', // Green
           );
         }
       }

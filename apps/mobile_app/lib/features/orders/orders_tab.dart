@@ -1933,6 +1933,7 @@ Please ensure timely delivery!
                                 'type': 'direct_assignment',
                                 'order_id': orderId
                               },
+                              color: 'FFD4A237', // Gold/Amber
                             );
                           } else if (assignmentType == 'direct_claim') {
                             // Scenario 5: Fastest claim
@@ -1945,6 +1946,7 @@ Please ensure timely delivery!
                                 'type': 'fastest_claim',
                                 'order_id': orderId
                               },
+                              color: 'FF4CAF50', // Green
                             );
                           } else if (assignmentType == 'open') {
                             // Scenario 4: Bidding starts
@@ -1954,6 +1956,7 @@ Please ensure timely delivery!
                               message:
                                   'Place your bid for: $clientName ($eventTime). Base fare: ₹$fare',
                               data: {'type': 'bidding', 'order_id': orderId},
+                              color: 'FFFF5722', // Deep Orange
                             );
                           }
                         }

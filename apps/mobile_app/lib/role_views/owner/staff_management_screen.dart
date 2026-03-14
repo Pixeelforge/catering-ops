@@ -586,9 +586,10 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
       // Scenario 7: Notify Staff they've been removed
       await NotificationService.sendNotification(
         playerIds: [staffId],
-        title: 'Team Update',
+        title: 'Team Update 👤',
         message: 'Your association with the company has been ended.',
         data: {'type': 'staff_removed'},
+        color: 'FFFF5722', // Deep Orange
       );
 
       // Notify Owner that staff has "left" (removed successfully)
@@ -596,9 +597,11 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
       if (owner != null) {
         await NotificationService.sendNotification(
           playerIds: [owner.id],
-          title: 'Staff Removed 👤',
-          message: '${staffName ?? 'A staff member'} has been removed from your team.',
+          title: 'Staff Member Removed 👤',
+          message:
+              '${staffName ?? 'A staff member'} has been removed from your team.',
           data: {'type': 'staff_removed_owner'},
+          color: 'FFFF5722', // Deep Orange
         );
       }
 

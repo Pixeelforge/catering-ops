@@ -53,6 +53,7 @@ class NotificationService {
     required String title,
     required String message,
     Map<String, dynamic>? data,
+    String color = 'FFD4A237',
   }) async {
     try {
       debugPrint('🔔 OneSignal: Sending notification to $playerIds: "$title"');
@@ -68,6 +69,7 @@ class NotificationService {
           'headings': {'en': title},
           'contents': {'en': message},
           'data': data,
+          'android_accent_color': color,
         }),
       );
 
@@ -91,6 +93,7 @@ class NotificationService {
     required String title,
     required String message,
     Map<String, dynamic>? data,
+    String color = 'FFD4A237',
   }) async {
     try {
       debugPrint('🔔 OneSignal: Sending company notification ($companyId): "$title"');
@@ -109,6 +112,7 @@ class NotificationService {
           'headings': {'en': title},
           'contents': {'en': message},
           'data': data,
+          'android_accent_color': color,
         }),
       );
 
@@ -116,7 +120,8 @@ class NotificationService {
         debugPrint('🔔 OneSignal: Success: ${response.body}');
         return null;
       } else {
-        final err = 'Build: 23:00 - Status ${response.statusCode}: ${response.body}';
+        final err =
+            'Build: 23:00 - Status ${response.statusCode}: ${response.body}';
         debugPrint('🔔 OneSignal Error: $err');
         return err;
       }

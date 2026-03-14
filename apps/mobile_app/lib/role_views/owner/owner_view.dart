@@ -12,6 +12,7 @@ import '../../features/orders/orders_tab.dart';
 import '../../features/ledger/screens/kaatha_screen.dart';
 import '../../services/notification_service.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
+import '../shared/settings_screen.dart';
 
 class OwnerView extends StatefulWidget {
   const OwnerView({super.key});
@@ -972,21 +973,20 @@ class _OwnerViewState extends State<OwnerView> {
             ],
           ),
           IconButton(
-            onPressed: () async {
-              final user = Supabase.instance.client.auth.currentUser;
-              if (user != null) {
-                try {
-                  await Supabase.instance.client
-                      .from('profiles')
-                      .update({'is_online': false})
-                      .eq('id', user.id);
-                } catch (_) {}
-              }
-              await Supabase.instance.client.auth.signOut();
-              if (context.mounted)
-                Navigator.pushReplacementNamed(context, '/login');
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => SettingsScreen(
+                    companyId: _companyId,
+                    companyName: _companyName,
+                    role: 'owner',
+                    fullName: _ownerName,
+                  ),
+                ),
+              );
             },
-            icon: const Icon(Icons.logout, color: Colors.white70),
+            icon: const Icon(Icons.settings_outlined, color: Colors.white70),
           ),
         ],
       ),

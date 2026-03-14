@@ -8,6 +8,7 @@ import 'package:geolocator/geolocator.dart';
 import '../../services/notification_service.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
 import '../../features/inventory/inventory_list_screen.dart';
+import '../shared/settings_screen.dart';
 import '../../features/orders/signature_pad_dialog.dart';
 
 class StaffView extends StatefulWidget {
@@ -437,19 +438,6 @@ class _StaffViewState extends State<StaffView> {
     }
   }
 
-  void _logout() async {
-    final user = supabase.auth.currentUser;
-    if (user != null) {
-      try {
-        await supabase
-            .from('profiles')
-            .update({'is_online': false})
-            .eq('id', user.id);
-      } catch (_) {}
-    }
-    await supabase.auth.signOut();
-    if (mounted) Navigator.pushReplacementNamed(context, '/login');
-  }
 
   void _showToast(String msg, Color color) {
     ScaffoldMessenger.of(
@@ -509,101 +497,6 @@ class _StaffViewState extends State<StaffView> {
     );
   }
 
-  Future<void> _leaveCompany() async {
-    if (_companyId == null) return;
-
-    final bool? confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF161626),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
-        ),
-        title: const Text(
-          'Leave Company',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        content: const Text(
-          'Are you sure you want to leave this company? You will lose access to the dashboard until you join another company.',
-          style: TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.redAccent,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            child: const Text(
-              'Leave',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm != true) return;
-
-    setState(() => _loading = true);
-
-    try {
-      final user = supabase.auth.currentUser;
-      if (user == null) return;
-
-      // 1. Get Owner ID before leaving
-      final companyRes = await supabase
-          .from('companies')
-          .select('owner_id')
-          .eq('id', _companyId!)
-          .maybeSingle();
-      
-      final ownerId = companyRes?['owner_id'];
-
-      // 2. Update Profile
-      await supabase
-          .from('profiles')
-          .update({'company_id': null})
-          .eq('id', user.id);
-
-      // 3. Send Notification to Owner
-      if (ownerId != null) {
-        // DB Notification
-        await supabase.from('notifications').insert({
-          'owner_id': ownerId,
-          'company_id': _companyId,
-          'title': 'Staff Left 👤',
-          'message': '${_staffName ?? 'A staff member'} has left the company.',
-          'type': 'staff_left',
-        });
-
-        // Push Notification
-        await NotificationService.sendNotification(
-          playerIds: [ownerId],
-          title: 'Staff Member Left 👤',
-          message: '${_staffName ?? 'A staff member'} has left your team.',
-          data: {'type': 'staff_left'},
-          color: 'FFFF5722', // Deep Orange
-        );
-      }
-
-      _showToast('Successfully left the company', Colors.green);
-      _fetchStaffProfile();
-    } catch (e) {
-      _showToast('Error: $e', Colors.redAccent);
-      setState(() => _loading = false);
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -646,8 +539,18 @@ class _StaffViewState extends State<StaffView> {
             icon: const Icon(Icons.cancel_outlined, color: Colors.white70),
           ),
           IconButton(
-            onPressed: _logout,
-            icon: const Icon(Icons.logout, color: Colors.white70),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => SettingsScreen(
+                    role: 'staff',
+                    fullName: _staffName,
+                  ),
+                ),
+              );
+            },
+            icon: const Icon(Icons.settings_outlined, color: Colors.white70),
           ),
         ],
       ),
@@ -698,8 +601,18 @@ class _StaffViewState extends State<StaffView> {
         automaticallyImplyLeading: false,
         actions: [
           IconButton(
-            onPressed: _logout,
-            icon: const Icon(Icons.logout, color: Colors.white70),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => SettingsScreen(
+                    role: 'staff',
+                    fullName: _staffName,
+                  ),
+                ),
+              );
+            },
+            icon: const Icon(Icons.settings_outlined, color: Colors.white70),
           ),
         ],
       ),
@@ -816,8 +729,20 @@ class _StaffViewState extends State<StaffView> {
         automaticallyImplyLeading: false,
         actions: [
           IconButton(
-            onPressed: _logout,
-            icon: const Icon(Icons.logout, color: Colors.white70),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => SettingsScreen(
+                    companyId: _companyId,
+                    companyName: _companyName,
+                    role: 'staff',
+                    fullName: _staffName,
+                  ),
+                ),
+              );
+            },
+            icon: const Icon(Icons.settings_outlined, color: Colors.white70),
           ),
         ],
       ),
@@ -967,28 +892,6 @@ class _StaffViewState extends State<StaffView> {
             _buildUpcomingEvents(),
             const SizedBox(height: 40),
             
-            // Leave Company Button
-            Center(
-              child: TextButton.icon(
-                onPressed: _leaveCompany,
-                icon: const Icon(Icons.exit_to_app, color: Colors.redAccent, size: 20),
-                label: const Text(
-                  'Leave Company',
-                  style: TextStyle(
-                    color: Colors.redAccent,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                  backgroundColor: Colors.redAccent.withValues(alpha: 0.05),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: const BorderSide(color: Colors.redAccent, width: 0.5),
-                  ),
-                ),
-              ),
-            ),
             const SizedBox(height: 60),
           ],
         ),

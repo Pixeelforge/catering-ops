@@ -4,8 +4,8 @@ import 'package:http/http.dart' as http;
 import 'package:onesignal_flutter/onesignal_flutter.dart';
 
 class NotificationService {
-  static const String appId = "e03d985c-4050-41d6-88fd-092232fa325b";
-  static const String restApiKey = "os_v2_app_4a6zqxcakba5nch5berdf6rslon4k6lho2re6i5w7j52a35us367wjy7m5vbvjtpd2z7izkv2bdghmdu2ez7g6ehgl3nqxzi6hy7ycy";
+  static const String appId = "a6be3e2a-c081-4eb2-b797-cb4f13136db4";
+  static const String restApiKey = "os_v2_app_u27d4kwaqfhlfn4xznhrge3nws2pf2v2pppuwm5nbf5djsootedunwaryjlbx5hjowkfs247okcvfqrekgagrrcgqkfp6v26yreyina";
   static bool _isInitialized = false;
 
   /// Initialize OneSignal globally (called in main.dart)

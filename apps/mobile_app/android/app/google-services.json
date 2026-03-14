@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "119819804610",
-    "project_id": "cater-ops-1ddac",
-    "storage_bucket": "cater-ops-1ddac.firebasestorage.app"
+    "project_number": "581418739811",
+    "project_id": "cateringops-new",
+    "storage_bucket": "cateringops-new.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:119819804610:android:c2dbc47fb1214103a1405b",
+        "mobilesdk_app_id": "1:581418739811:android:cf1e047d73bc87e0c37056",
         "android_client_info": {
           "package_name": "com.example.mobile_app"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyD_VnMvFcIGthMUR1FDxWNo8iYK5YbuFrM"
+          "current_key": "AIzaSyBT0WaOWKIUXAym-Ou3WEtHQcYlljj5MDE"
         }
       ],
       "services": {

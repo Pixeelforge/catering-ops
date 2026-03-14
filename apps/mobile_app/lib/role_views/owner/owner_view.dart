@@ -300,7 +300,7 @@ class _OwnerViewState extends State<OwnerView> {
           .select('name, phone_number')
           .eq('company_id', _companyId!);
       
-      if (res == null || (res as List).isEmpty) {
+      if ((res as List).isEmpty) {
         _toast('No middlemen found to share location with');
         return;
       }

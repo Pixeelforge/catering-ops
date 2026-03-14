@@ -465,7 +465,6 @@ Please ensure timely delivery!
     final bool isPaid = order['payment_status'] == 'paid';
     final bool isCompleted = order['order_status'] == 'completed';
     final String? middlemanTag = order['middleman_tag'];
-    final bool isKhataSaved = order['is_khata_saved'] == true;
     final String? deliveryStaffId = order['delivery_staff_id'];
     final bool isDeliveryOpen = order['is_delivery_open'] == true;
     final String? deliverySignature = order['delivery_signature'];

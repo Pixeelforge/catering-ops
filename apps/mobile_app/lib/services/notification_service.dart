@@ -98,7 +98,7 @@ class NotificationService {
         Uri.parse('https://onesignal.com/api/v1/notifications'),
         headers: {
           'Content-Type': 'application/json; charset=utf-8',
-          'Authorization': 'Basic $restApiKey',
+          'Authorization': 'Key $restApiKey',
         },
         body: jsonEncode({
           'app_id': appId,

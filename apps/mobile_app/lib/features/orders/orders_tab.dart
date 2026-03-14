@@ -397,14 +397,60 @@ Please ensure timely delivery!
       final updates = <String, dynamic>{
         'payment_status': newStatus,
       };
+      
+      final double totalValue = (order['total_value'] as num).toDouble();
+      final double paidAlready = (order['paid_amount'] as num? ?? 0.0).toDouble();
+      
       if (newStatus == 'paid') {
-        updates['paid_amount'] = order['total_value'];
+        updates['paid_amount'] = totalValue;
+        
+        // Handle Middleman Khata logic: subtract remaining balance when marked as paid
+        final String? middlemanTag = order['middleman_tag'];
+        final bool isKhataSaved = order['is_khata_saved'] == true;
+        
+        if (middlemanTag != null && middlemanTag.isNotEmpty && isKhataSaved) {
+          // Extract phone number from "Name (Phone)"
+          final regExp = RegExp(r'\((.*?)\)');
+          final match = regExp.firstMatch(middlemanTag);
+          final phoneNumber = match?.group(1)?.replaceAll(RegExp(r'[^\d+]'), '') ?? '';
+          
+          if (phoneNumber.isNotEmpty) {
+            // Find middleman by phone and company
+            final manRes = await _supabase
+                .from('middle_men')
+                .select()
+                .eq('company_id', widget.companyId)
+                .eq('phone_number', phoneNumber)
+                .maybeSingle();
+                
+            if (manRes != null) {
+              final currentBalance = (manRes['total_balance'] as num).toDouble();
+              final manId = manRes['id'];
+              
+              // 1. Subtract ONLY the remaining outstanding amount from middleman's total balance
+              final double remaining = totalValue - paidAlready;
+              if (remaining > 0) {
+                await _supabase
+                    .from('middle_men')
+                    .update({'total_balance': currentBalance - remaining})
+                    .eq('id', manId);
+              }
+                  
+              // 2. Mark as no longer active in khata to avoid subtracting again if toggled
+              updates['is_khata_saved'] = false;
+            }
+          }
+        }
+      } else {
+        updates['paid_amount'] = 0;
       }
       
       await _supabase
           .from('orders')
           .update(updates)
           .eq('id', order['id']);
+          
+      _fetchOrders();
     } catch (e) {
       _toast('Error updating payment: $e');
     }
@@ -1861,20 +1907,25 @@ Please ensure timely delivery!
                         // Fetch order details for the notification message
                         final orderRes = await _supabase
                             .from('orders')
-                            .select('client_name, event_name')
+                            .select('client_name, event_date')
                             .eq('id', orderId)
                             .maybeSingle();
 
                         if (orderRes != null) {
                           final clientName = orderRes['client_name'];
-                          final eventName = orderRes['event_name'];
+                          final eventDateRaw = orderRes['event_date'];
+                          String eventTime = '';
+                          if (eventDateRaw != null) {
+                            final date = DateTime.parse(eventDateRaw).toLocal();
+                            eventTime = DateFormat('MMM dd, h:mm a').format(date);
+                          }
 
                           if (assignmentType == 'specific') {
                             // Scenario 4: Direct Assignment
                             await NotificationService.sendNotification(
                               playerIds: [selectedStaffId],
                               title: 'New Order Assigned',
-                              message: 'You have been assigned to: $clientName ($eventName)',
+                              message: 'You have been assigned to: $clientName ($eventTime)',
                               data: {'type': 'direct_assignment', 'order_id': orderId},
                             );
                           } else if (assignmentType == 'direct_claim') {
@@ -1882,7 +1933,7 @@ Please ensure timely delivery!
                             await NotificationService.sendToCompany(
                               companyId: widget.companyId,
                               title: 'New Order Available!',
-                              message: 'Fastest Claim: $clientName ($eventName) is available for ₹$fare',
+                              message: 'Fastest Claim: $clientName ($eventTime) is available for ₹$fare',
                               data: {'type': 'fastest_claim', 'order_id': orderId},
                             );
                           } else if (assignmentType == 'open') {
@@ -1890,7 +1941,7 @@ Please ensure timely delivery!
                             await NotificationService.sendToCompany(
                               companyId: widget.companyId,
                               title: 'New Bidding Opportunity',
-                              message: 'Place your bid for: $clientName ($eventName). Base fare: ₹$fare',
+                              message: 'Place your bid for: $clientName ($eventTime). Base fare: ₹$fare',
                               data: {'type': 'bidding', 'order_id': orderId},
                             );
                           }

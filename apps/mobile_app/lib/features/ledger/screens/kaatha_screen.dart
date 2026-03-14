@@ -421,10 +421,14 @@ class _KaathaScreenState extends State<KaathaScreen> {
 
       try {
         // 1. Update Order
-        await _supabase.from('orders').update({
+        final Map<String, dynamic> orderUpdates = {
           'paid_amount': newPaidAmount,
           'payment_status': isFullyPaid ? 'paid' : 'pending',
-        }).eq('id', order['id']);
+        };
+        if (isFullyPaid) {
+          orderUpdates['is_khata_saved'] = false;
+        }
+        await _supabase.from('orders').update(orderUpdates).eq('id', order['id']);
 
         // 2. Update Middleman Balance
         final currentManBalance = (man['total_balance'] as num).toDouble();

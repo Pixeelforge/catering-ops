@@ -2,10 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'join_requests_screen.dart';
+
+import 'join_requests_screen.dart';
 
 class StaffManagementScreen extends StatefulWidget {
   final String companyId;
-  const StaffManagementScreen({super.key, required this.companyId});
+  final VoidCallback? onRequestHandled;
+
+  const StaffManagementScreen({
+    super.key,
+    required this.companyId,
+    this.onRequestHandled,
+  });
 
   @override
   State<StaffManagementScreen> createState() => _StaffManagementScreenState();
@@ -112,60 +121,87 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF1A1A2E),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        automaticallyImplyLeading: false,
-        title: const Text(
-          'Our Team',
-          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        backgroundColor: const Color(0xFF1A1A2E),
+        appBar: AppBar(
+          backgroundColor: const Color(0xFF161626),
+          elevation: 0,
+          automaticallyImplyLeading: false,
+          title: const Text(
+            'Staff Management',
+            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+          ),
+          bottom: const TabBar(
+            indicatorColor: Colors.orangeAccent,
+            labelColor: Colors.orangeAccent,
+            unselectedLabelColor: Colors.white54,
+            tabs: [
+              Tab(text: 'Current Staff'),
+              Tab(text: 'Join Requests'),
+            ],
+          ),
         ),
-      ),
-      body: _loading
-          ? const Center(
-              child: CircularProgressIndicator(color: Colors.orangeAccent),
-            )
-          : (_staffMembers.isEmpty && _pendingInvitations.isEmpty)
-          ? _buildEmptyState()
-          : ListView(
-              padding: const EdgeInsets.all(24),
-              children: [
-                if (_staffMembers.isNotEmpty) ...[
-                  const Text(
-                    'Active Staff',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
+        body: TabBarView(
+          children: [
+            // TAB 1: Current Staff & Invitations
+            _loading
+                ? const Center(
+                    child: CircularProgressIndicator(color: Colors.orangeAccent),
+                  )
+                : (_staffMembers.isEmpty && _pendingInvitations.isEmpty)
+                ? _buildEmptyState()
+                : ListView(
+                    padding: const EdgeInsets.all(24),
+                    children: [
+                      if (_staffMembers.isNotEmpty) ...[
+                        const Text(
+                          'Active Staff',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        ..._staffMembers.map((staff) => _buildStaffTile(staff)),
+                      ],
+                      if (_pendingInvitations.isNotEmpty) ...[
+                        const SizedBox(height: 24),
+                        const Text(
+                          'Pending Invitations',
+                          style: TextStyle(
+                            color: Colors.orangeAccent,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        ..._pendingInvitations.map((invite) => _buildInviteTile(invite)),
+                      ],
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  ..._staffMembers.map((staff) => _buildStaffTile(staff)),
-                ],
-                if (_pendingInvitations.isNotEmpty) ...[
-                  const SizedBox(height: 24),
-                  const Text(
-                    'Pending Invitations',
-                    style: TextStyle(
-                      color: Colors.orangeAccent,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  ..._pendingInvitations.map((invite) => _buildInviteTile(invite)),
-                ],
-              ],
+
+            // TAB 2: Join Requests
+            JoinRequestsScreen(
+              onRequestHandled: () {
+                _fetchStaff();
+                if (widget.onRequestHandled != null) {
+                  widget.onRequestHandled!();
+                }
+              },
             ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showAddStaffDialog,
-        backgroundColor: Colors.orangeAccent,
-        icon: const Icon(Icons.person_add, color: Colors.black),
-        label: const Text(
-          'Add Staff',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+          ],
+        ),
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: _showAddStaffDialog,
+          backgroundColor: Colors.orangeAccent,
+          icon: const Icon(Icons.person_add, color: Colors.black),
+          label: const Text(
+            'Add Staff',
+            style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+          ),
         ),
       ),
     );

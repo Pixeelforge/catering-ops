@@ -6,10 +6,9 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:geolocator/geolocator.dart';
 import 'staff_management_screen.dart';
-import 'join_requests_screen.dart';
-import '../../features/inventory/inventory_list_screen.dart';
-import '../../features/orders/orders_tab.dart';
 import '../../features/ledger/screens/kaatha_screen.dart';
+import '../../features/menu/menu_master_screen.dart';
+import '../../features/orders/orders_tab.dart';
 import '../../services/notification_service.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
 
@@ -866,10 +865,7 @@ class _OwnerViewState extends State<OwnerView> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => InventoryListScreen(
-                      companyId: _companyId!,
-                      isOwner: true,
-                    ),
+                    builder: (context) => MenuMasterScreen(companyId: _companyId!),
                   ),
                 );
               }
@@ -987,6 +983,96 @@ class _OwnerViewState extends State<OwnerView> {
                         ),
                         Text(
                           'Khata ledger & middleman accounts',
+                          style: TextStyle(color: Colors.white54, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    color: Colors.white24,
+                    size: 16,
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 30),
+
+          // Business Location Action
+          InkWell(
+            onTap: () async {
+              // Fetch current coordinates first if they exist
+              double? initLat;
+              double? initLng;
+              if (_companyId != null) {
+                try {
+                  final resp = await Supabase.instance.client
+                      .from('companies')
+                      .select('latitude, longitude')
+                      .eq('id', _companyId!)
+                      .maybeSingle();
+                  if (resp != null && resp['latitude'] != null && resp['longitude'] != null) {
+                    initLat = (resp['latitude'] as num).toDouble();
+                    initLng = (resp['longitude'] as num).toDouble();
+                  }
+                } catch (_) {}
+              }
+
+              if (!mounted) return;
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => LocationPickerScreen(
+                    companyId: _companyId ?? '',
+                    initialLat: initLat,
+                    initialLng: initLng,
+                  ),
+                ),
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.redAccent.withOpacity(0.15),
+                    Colors.redAccent.withOpacity(0.05),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.redAccent.withOpacity(0.2)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.redAccent.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.add_location_alt,
+                      color: Colors.redAccent,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Set Business Location',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        Text(
+                          'Pin your location for customers',
                           style: TextStyle(color: Colors.white54, fontSize: 13),
                         ),
                       ],
@@ -1145,11 +1231,12 @@ class _OwnerViewState extends State<OwnerView> {
           : _selectedIndex == 1
           ? OrdersTab(companyId: _companyId ?? '')
           : _selectedIndex == 2
-          ? JoinRequestsScreen(
-              key: ValueKey(_pendingCount),
+          ? const Center(child: Text('Customers Module (Coming Soon)', style: TextStyle(color: Colors.white54)))
+          : StaffManagementScreen(
+              companyId: _companyId ?? '',
               onRequestHandled: _fetchRequestCount,
-            )
-          : StaffManagementScreen(companyId: _companyId ?? ''),
+              key: ValueKey(_pendingCount),
+            ),
       bottomNavigationBar: BottomNavigationBar(
         backgroundColor: const Color(0xFF161626),
         selectedItemColor: Colors.orangeAccent,
@@ -1157,33 +1244,23 @@ class _OwnerViewState extends State<OwnerView> {
         currentIndex: _selectedIndex,
         onTap: (index) => setState(() => _selectedIndex = index),
         type: BottomNavigationBarType.fixed,
-        items: [
-          const BottomNavigationBarItem(
+        items: const [
+          BottomNavigationBarItem(
             icon: Icon(Icons.dashboard_outlined),
             activeIcon: Icon(Icons.dashboard),
             label: 'Dashboard',
           ),
-          const BottomNavigationBarItem(
+          BottomNavigationBarItem(
             icon: Icon(Icons.assignment_outlined),
             activeIcon: Icon(Icons.assignment),
             label: 'Orders',
           ),
           BottomNavigationBarItem(
-            icon: Badge(
-              isLabelVisible: _pendingCount > 0,
-              label: Text('$_pendingCount'),
-              backgroundColor: Colors.redAccent,
-              child: const Icon(Icons.person_add_outlined),
-            ),
-            activeIcon: Badge(
-              isLabelVisible: _pendingCount > 0,
-              label: Text('$_pendingCount'),
-              backgroundColor: Colors.redAccent,
-              child: const Icon(Icons.person_add),
-            ),
-            label: 'Requests',
+            icon: Icon(Icons.groups_outlined),
+            activeIcon: Icon(Icons.groups),
+            label: 'Customers',
           ),
-          const BottomNavigationBarItem(
+          BottomNavigationBarItem(
             icon: Icon(Icons.people_alt_outlined),
             activeIcon: Icon(Icons.people_alt),
             label: 'Staff',

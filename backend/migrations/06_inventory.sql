@@ -16,6 +16,7 @@ ALTER TABLE public.inventory_items ENABLE ROW LEVEL SECURITY;
 -- 🔹 3. RLS POLICIES
 
 -- Anyone in the company can view the inventory
+DROP POLICY IF EXISTS "Company members can view inventory" ON public.inventory_items;
 CREATE POLICY "Company members can view inventory" ON public.inventory_items
     FOR SELECT USING (
         EXISTS (
@@ -26,6 +27,7 @@ CREATE POLICY "Company members can view inventory" ON public.inventory_items
     );
 
 -- Only owners can insert into their company's inventory
+DROP POLICY IF EXISTS "Owners can create inventory items" ON public.inventory_items;
 CREATE POLICY "Owners can create inventory items" ON public.inventory_items
     FOR INSERT WITH CHECK (
         EXISTS (
@@ -37,6 +39,7 @@ CREATE POLICY "Owners can create inventory items" ON public.inventory_items
     );
 
 -- Only owners can update their company's inventory
+DROP POLICY IF EXISTS "Owners can update inventory items" ON public.inventory_items;
 CREATE POLICY "Owners can update inventory items" ON public.inventory_items
     FOR UPDATE USING (
         EXISTS (
@@ -48,6 +51,7 @@ CREATE POLICY "Owners can update inventory items" ON public.inventory_items
     );
 
 -- Only owners can delete their company's inventory
+DROP POLICY IF EXISTS "Owners can delete inventory items" ON public.inventory_items;
 CREATE POLICY "Owners can delete inventory items" ON public.inventory_items
     FOR DELETE USING (
         EXISTS (

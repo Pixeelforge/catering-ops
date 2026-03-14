@@ -2,14 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:audioplayers/audioplayers.dart';
-import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:geolocator/geolocator.dart';
 import 'staff_management_screen.dart';
 import 'join_requests_screen.dart';
 import '../../features/inventory/inventory_list_screen.dart';
 import '../../features/orders/orders_tab.dart';
-import '../../features/ledger/screens/kaatha_screen.dart';
 import '../../services/notification_service.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
 
@@ -132,7 +130,7 @@ class _OwnerViewState extends State<OwnerView> {
           .select('name, phone_number')
           .eq('company_id', _companyId!);
       
-      if (res == null || (res as List).isEmpty) {
+      if ((res as List).isEmpty) {
         _toast('No middlemen found to share location with');
         return;
       }
@@ -214,11 +212,9 @@ class _OwnerViewState extends State<OwnerView> {
   }
 
   Map<String, dynamic>? _activeDelivery;
-  bool _loadingActive = false;
 
   Future<void> _fetchActiveDelivery() async {
     if (_companyId == null) return;
-    setState(() => _loadingActive = true);
     try {
       final res = await supabase
           .from('orders')
@@ -233,12 +229,10 @@ class _OwnerViewState extends State<OwnerView> {
       if (mounted) {
         setState(() {
           _activeDelivery = res;
-          _loadingActive = false;
         });
       }
     } catch (e) {
       debugPrint('Error fetching active delivery: $e');
-      if (mounted) setState(() => _loadingActive = false);
     }
   }
 
@@ -345,7 +339,7 @@ class _OwnerViewState extends State<OwnerView> {
           Text(
             'Welcome Back,',
             style: TextStyle(
-              color: Colors.white.withOpacity(0.6),
+              color: Colors.white.withValues(alpha: 0.6),
               fontSize: 16,
             ),
           ),
@@ -361,7 +355,7 @@ class _OwnerViewState extends State<OwnerView> {
           Text(
             'Owner: ${_ownerName ?? '...'}',
             style: TextStyle(
-              color: Colors.white.withOpacity(0.5),
+              color: Colors.white.withValues(alpha: 0.5),
               fontSize: 13,
             ),
           ),
@@ -371,9 +365,9 @@ class _OwnerViewState extends State<OwnerView> {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Colors.orangeAccent.withOpacity(0.1),
+                color: Colors.orangeAccent.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.orangeAccent.withOpacity(0.3)),
+                border: Border.all(color: Colors.orangeAccent.withValues(alpha: 0.3)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -407,7 +401,7 @@ class _OwnerViewState extends State<OwnerView> {
                   ),
                   Text(
                     'Staff: ${_activeDelivery!['profiles']?['full_name'] ?? 'Assigning...'}',
-                    style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13),
+                    style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 13),
                   ),
                   const SizedBox(height: 16),
                   SizedBox(
@@ -434,7 +428,7 @@ class _OwnerViewState extends State<OwnerView> {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.05),
+              color: Colors.white.withValues(alpha: 0.05),
               borderRadius: BorderRadius.circular(24),
               border: Border.all(color: Colors.white12),
             ),
@@ -467,7 +461,7 @@ class _OwnerViewState extends State<OwnerView> {
                     vertical: 16,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.2),
+                    color: Colors.black.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
@@ -505,7 +499,7 @@ class _OwnerViewState extends State<OwnerView> {
                         child: Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: Colors.orangeAccent.withOpacity(0.1),
+                            color: Colors.orangeAccent.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: const Icon(
@@ -522,7 +516,7 @@ class _OwnerViewState extends State<OwnerView> {
                 Text(
                   'Share this ID with your staff so they can join your workspace.',
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.4),
+                    color: Colors.white.withValues(alpha: 0.4),
                     fontSize: 12,
                   ),
                 ),
@@ -540,8 +534,8 @@ class _OwnerViewState extends State<OwnerView> {
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    Colors.greenAccent.withOpacity(0.15),
-                    Colors.greenAccent.withOpacity(0.05),
+                    Colors.greenAccent.withValues(alpha: 0.15),
+                    Colors.greenAccent.withValues(alpha: 0.05),
                   ],
                 ),
                 borderRadius: BorderRadius.circular(20),
@@ -552,7 +546,7 @@ class _OwnerViewState extends State<OwnerView> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.greenAccent.withOpacity(0.1),
+                      color: Colors.greenAccent.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
@@ -613,13 +607,13 @@ class _OwnerViewState extends State<OwnerView> {
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    Colors.blueAccent.withOpacity(0.15),
-                    Colors.blueAccent.withOpacity(0.05),
+                    Colors.blueAccent.withValues(alpha: 0.15),
+                    Colors.blueAccent.withValues(alpha: 0.05),
                   ],
                 ),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: Colors.blueAccent.withOpacity(0.2),
+                  color: Colors.blueAccent.withValues(alpha: 0.2),
                 ),
               ),
               child: Row(
@@ -627,7 +621,7 @@ class _OwnerViewState extends State<OwnerView> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.blueAccent.withOpacity(0.1),
+                      color: Colors.blueAccent.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
@@ -677,10 +671,10 @@ class _OwnerViewState extends State<OwnerView> {
             width: double.infinity,
             padding: const EdgeInsets.all(40),
             decoration: BoxDecoration(
-              color: Colors.orangeAccent.withOpacity(0.02),
+              color: Colors.orangeAccent.withValues(alpha: 0.02),
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
-                color: Colors.orangeAccent.withOpacity(0.1),
+                color: Colors.orangeAccent.withValues(alpha: 0.1),
                 width: 1,
               ),
             ),
@@ -689,14 +683,14 @@ class _OwnerViewState extends State<OwnerView> {
                 children: [
                   Icon(
                     Icons.analytics_outlined,
-                    color: Colors.orangeAccent.withOpacity(0.2),
+                    color: Colors.orangeAccent.withValues(alpha: 0.2),
                     size: 48,
                   ),
                   const SizedBox(height: 16),
                   Text(
                     'Revenue & Orders overview will appear here soon.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.white.withOpacity(0.3)),
+                    style: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
                   ),
                 ],
               ),
@@ -706,6 +700,7 @@ class _OwnerViewState extends State<OwnerView> {
       ),
     );
   }
+  @override
   Widget build(BuildContext context) {
     if (_loading) {
       return const Scaffold(

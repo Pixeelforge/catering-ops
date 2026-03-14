@@ -185,7 +185,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
               backgroundColor: const Color(0xFF161626),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
-                side: BorderSide(color: Colors.white.withOpacity(0.1)),
+                side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
               ),
               title: const Text(
                 'Add Staff Member',
@@ -214,7 +214,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                       icon: const Icon(Icons.contacts, size: 18),
                       label: const Text('Select from Contacts'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blueAccent.withOpacity(0.2),
+                        backgroundColor: Colors.blueAccent.withValues(alpha: 0.2),
                         foregroundColor: Colors.blueAccent,
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,
@@ -233,7 +233,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                         labelText: 'Full Name',
                         labelStyle: const TextStyle(color: Colors.white54),
                         filled: true,
-                        fillColor: Colors.white.withOpacity(0.05),
+                        fillColor: Colors.white.withValues(alpha: 0.05),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide: BorderSide.none,
@@ -255,7 +255,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                           borderSide: BorderSide.none,
                         ),
                         hintText: 'e.g. 9876543210',
-                        hintStyle: TextStyle(color: Colors.white.withOpacity(0.2)),
+                        hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.2)),
                       ),
                     ),
                   ],
@@ -428,19 +428,19 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
         children: [
           Icon(
             Icons.people_outline,
-            color: Colors.white.withOpacity(0.2),
+            color: Colors.white.withValues(alpha: 0.2),
             size: 64,
           ),
           const SizedBox(height: 16),
           Text(
             'No staff members found.',
-            style: TextStyle(color: Colors.white.withOpacity(0.5)),
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
           ),
           const SizedBox(height: 8),
           Text(
             'Share your Company ID to invite them!',
             style: TextStyle(
-              color: Colors.white.withOpacity(0.3),
+              color: Colors.white.withValues(alpha: 0.3),
               fontSize: 12,
             ),
           ),
@@ -461,7 +461,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
       child: Row(
         children: [
           CircleAvatar(
-            backgroundColor: Colors.orangeAccent.withOpacity(0.1),
+            backgroundColor: Colors.orangeAccent.withValues(alpha: 0.1),
             child: Text(
               (staff['full_name'] as String?)?[0].toUpperCase() ?? 'S',
               style: const TextStyle(
@@ -486,7 +486,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                 Text(
                   staff['phone'] ?? 'No phone added',
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.5),
+                    color: Colors.white.withValues(alpha: 0.5),
                     fontSize: 13,
                   ),
                 ),
@@ -500,8 +500,8 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: (staff['is_online'] == true)
-                      ? Colors.green.withOpacity(0.1)
-                      : Colors.redAccent.withOpacity(0.1),
+                      ? Colors.green.withValues(alpha: 0.1)
+                      : Colors.redAccent.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
@@ -611,14 +611,14 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.orangeAccent.withOpacity(0.3)),
+        border: Border.all(color: Colors.orangeAccent.withValues(alpha: 0.3)),
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
         leading: CircleAvatar(
-          backgroundColor: Colors.orangeAccent.withOpacity(0.2),
+          backgroundColor: Colors.orangeAccent.withValues(alpha: 0.2),
           child: const Icon(Icons.hourglass_empty, color: Colors.orangeAccent),
         ),
         title: Text(

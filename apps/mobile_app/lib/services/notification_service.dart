@@ -7,15 +7,29 @@ class NotificationService {
   static const String appId = "e03d985c-4050-41d6-88fd-092232fa325b";
   static const String restApiKey = "os_v2_app_4a6zqxcakba5nch5berdf6rsln7csm6bakjuxanhzhiglq4s2dd6hjwsevcyhurozruzg4gxmudcomcnswrixp4a4hp7kkwhj2jrzwq";
 
-  static Future<void> initialize(String userId) async {
-    OneSignal.Debug.setLogLevel(OSLogLevel.verbose);
-    OneSignal.initialize(appId);
-    
-    // Login user with their Supabase ID to target them specifically
-    OneSignal.login(userId);
-    
-    // Request permission (redundant with native but good for safety)
-    OneSignal.Notifications.requestPermission(true);
+  /// Initialize OneSignal globally (called in main.dart)
+  static Future<void> setupOneSignal() async {
+    try {
+      debugPrint('🔔 OneSignal: Initializing with App ID: $appId');
+      OneSignal.Debug.setLogLevel(OSLogLevel.verbose);
+      OneSignal.initialize(appId);
+      
+      // Opt-in for notifications
+      OneSignal.Notifications.requestPermission(true);
+      debugPrint('🔔 OneSignal: Setup complete');
+    } catch (e) {
+      debugPrint('🔔 OneSignal Error: Setup failed: $e');
+    }
+  }
+
+  /// Login user to OneSignal once Supabase auth is resolved
+  static void login(String userId) {
+    try {
+      debugPrint('🔔 OneSignal: Logging in user: $userId');
+      OneSignal.login(userId);
+    } catch (e) {
+      debugPrint('🔔 OneSignal Error: Login failed: $e');
+    }
   }
 
   static Future<void> sendNotification({

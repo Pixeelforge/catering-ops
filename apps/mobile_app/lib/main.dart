@@ -6,11 +6,15 @@ import 'features/auth/screens/signup_screen.dart';
 import 'features/dashboard/dashboard_screen.dart';
 import 'role_views/owner/join_requests_screen.dart';
 import 'core/env.dart';
+import 'services/notification_service.dart';
 
 void main() async {
   try {
     WidgetsFlutterBinding.ensureInitialized();
     await dotenv.load(fileName: "assets/.env");
+
+    // Initialize Push Notifications early
+    await NotificationService.setupOneSignal();
 
     await Supabase.initialize(
       url: Env.supabaseUrl,

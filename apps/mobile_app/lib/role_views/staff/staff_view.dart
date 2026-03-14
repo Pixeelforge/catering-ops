@@ -235,8 +235,8 @@ class _StaffViewState extends State<StaffView> {
 
         if (_companyId != null) {
           _fetchCompanyName();
-          // Initialize OneSignal with tags
-          NotificationService.initialize(user.id);
+          // Login user to OneSignal
+          NotificationService.login(user.id);
           OneSignal.User.addTags({
             'company_id': _companyId!,
             'role': 'staff',

@@ -72,8 +72,8 @@ class _OwnerViewState extends State<OwnerView> {
           _setupRequestRealtime();
           _fetchActiveDelivery();
 
-          // Initialize OneSignal for Owners
-          NotificationService.initialize(user.id);
+          // Login user to OneSignal
+          NotificationService.login(user.id);
           OneSignal.User.addTags({
             'company_id': _companyId!,
             'role': 'owner',

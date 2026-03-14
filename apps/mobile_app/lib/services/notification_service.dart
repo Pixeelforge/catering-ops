@@ -75,7 +75,7 @@ class NotificationService {
         debugPrint('🔔 OneSignal: Success: ${response.body}');
         return null;
       } else {
-        final err = 'Status ${response.statusCode}: ${response.body}';
+        final err = 'Build 22:20 - Status ${response.statusCode}: ${response.body}';
         debugPrint('🔔 OneSignal Error: $err');
         return err;
       }
@@ -116,7 +116,7 @@ class NotificationService {
         debugPrint('🔔 OneSignal: Success: ${response.body}');
         return null;
       } else {
-        final err = 'Status ${response.statusCode}: ${response.body}';
+        final err = 'Build 22:20 - Status ${response.statusCode}: ${response.body}';
         debugPrint('🔔 OneSignal Error: $err');
         return err;
       }

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:audioplayers/audioplayers.dart';
-import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:geolocator/geolocator.dart';
 import 'staff_management_screen.dart';
@@ -13,6 +12,8 @@ import '../../features/ledger/screens/kaatha_screen.dart';
 import '../../services/notification_service.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
 import '../shared/settings_screen.dart';
+import '../shared/animated_notification_overlay.dart';
+import '../shared/expandable_notification_item.dart';
 
 class OwnerView extends StatefulWidget {
   const OwnerView({super.key});
@@ -193,20 +194,12 @@ class _OwnerViewState extends State<OwnerView> {
   }
 
   void _showNotificationAlert(String title, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-            Text(message),
-          ],
-        ),
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: Colors.blueAccent,
-        duration: const Duration(seconds: 4),
-      ),
+    AnimatedNotificationOverlay.show(
+      context: context,
+      title: title,
+      message: message,
+      icon: Icons.notifications_active,
+      color: Colors.blueAccent,
     );
   }
 
@@ -267,18 +260,8 @@ class _OwnerViewState extends State<OwnerView> {
                   return ListView.builder(
                     itemCount: notifications.length,
                     itemBuilder: (context, index) {
-                      final n = notifications[index];
-                      return ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: Colors.blueAccent.withOpacity(0.1),
-                          child: const Icon(Icons.notifications, color: Colors.blueAccent, size: 20),
-                        ),
-                        title: Text(n['title'], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                        subtitle: Text(n['message'], style: const TextStyle(color: Colors.white70)),
-                        trailing: Text(
-                          DateFormat('HH:mm').format(DateTime.parse(n['created_at']).toLocal()),
-                          style: const TextStyle(color: Colors.white38, fontSize: 10),
-                        ),
+                      return ExpandableNotificationItem(
+                        notification: notifications[index],
                       );
                     },
                   );

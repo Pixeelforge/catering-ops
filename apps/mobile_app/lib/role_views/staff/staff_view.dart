@@ -10,6 +10,8 @@ import '../../features/inventory/inventory_list_screen.dart';
 import '../shared/settings_screen.dart';
 import '../../features/orders/signature_pad_dialog.dart';
 import '../../services/cache_service.dart';
+import '../shared/animated_notification_overlay.dart';
+import '../shared/expandable_notification_item.dart';
 
 class StaffView extends StatefulWidget {
   const StaffView({super.key});
@@ -32,7 +34,26 @@ class _StaffViewState extends State<StaffView> with WidgetsBindingObserver {
   RealtimeChannel? _requestSubscription;
   RealtimeChannel? _profileSubscription;
   RealtimeChannel? _assignedOrdersSubscription;
+  RealtimeChannel? _notificationSubscription;
+  int _unreadNotificationsCount = 0;
   final _audioPlayer = AudioPlayer();
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _companyCodeCtrl.dispose();
+    _requestSubscription?.unsubscribe();
+    _profileSubscription?.unsubscribe();
+    _assignedOrdersSubscription?.unsubscribe();
+    _notificationSubscription?.unsubscribe();
+    _audioPlayer.dispose();
+    _countdownTimer?.cancel();
+    _locationTimer?.cancel();
+    for (final ctrl in _bidControllers.values) {
+      ctrl.dispose();
+    }
+    super.dispose();
+  }
 
   List<Map<String, dynamic>> _assignedOrders = [];
   List<Map<String, dynamic>> _openOrders = [];
@@ -196,6 +217,8 @@ class _StaffViewState extends State<StaffView> with WidgetsBindingObserver {
     _setupProfileRealtime();
     // NOTE: _fetchAssignedOrders and _setupAssignedOrdersRealtime are called
     // inside _fetchStaffProfile() after _companyId is available.
+    _fetchNotificationsCount();
+    _setupNotificationRealtime();
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (mounted) setState(() {});
     });
@@ -214,20 +237,124 @@ class _StaffViewState extends State<StaffView> with WidgetsBindingObserver {
     }
   }
 
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _companyCodeCtrl.dispose();
-    _requestSubscription?.unsubscribe();
-    _profileSubscription?.unsubscribe();
-    _assignedOrdersSubscription?.unsubscribe();
-    _audioPlayer.dispose();
-    _countdownTimer?.cancel();
-    _locationTimer?.cancel();
-    for (final ctrl in _bidControllers.values) {
-      ctrl.dispose();
-    }
-    super.dispose();
+  Future<void> _fetchNotificationsCount() async {
+    final user = supabase.auth.currentUser;
+    if (user == null) return;
+    try {
+      final res = await supabase
+          .from('notifications')
+          .select('id')
+          .eq('owner_id', user.id) // In this app, notifications table uses owner_id for any recipient
+          .eq('is_read', false);
+      if (mounted) setState(() => _unreadNotificationsCount = res.length);
+    } catch (_) {}
+  }
+
+  void _setupNotificationRealtime() {
+    final user = supabase.auth.currentUser;
+    if (user == null) return;
+
+    _notificationSubscription?.unsubscribe();
+    _notificationSubscription = supabase
+        .channel('public:notifications:staff')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'notifications',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'owner_id',
+            value: user.id,
+          ),
+          callback: (payload) {
+            if (mounted) {
+              setState(() => _unreadNotificationsCount++);
+              _audioPlayer.play(AssetSource('sounds/notification.mp3')).catchError((_) {});
+              _showNotificationAlert(payload.newRecord['title'], payload.newRecord['message']);
+            }
+          },
+        )
+        .subscribe();
+  }
+
+  void _showNotificationAlert(String title, String message) {
+    AnimatedNotificationOverlay.show(
+      context: context,
+      title: title,
+      message: message,
+      icon: Icons.notifications_active,
+      color: Colors.orangeAccent,
+    );
+  }
+
+  void _showNotificationsSheet() {
+    setState(() => _unreadNotificationsCount = 0);
+    final user = supabase.auth.currentUser;
+    if (user == null) return;
+
+    // Mark as read
+    supabase
+        .from('notifications')
+        .update({'is_read': true})
+        .eq('is_read', false)
+        .eq('owner_id', user.id)
+        .then((_) {});
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF161626),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Notifications',
+                  style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close, color: Colors.white70),
+                ),
+              ],
+            ),
+            const Divider(color: Colors.white10),
+            Expanded(
+              child: FutureBuilder<List<Map<String, dynamic>>>(
+                future: supabase
+                    .from('notifications')
+                    .select()
+                    .eq('owner_id', user.id)
+                    .order('created_at', ascending: false)
+                    .limit(20),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  final notifications = snapshot.data ?? [];
+                  if (notifications.isEmpty) {
+                    return const Center(
+                      child: Text('No notifications', style: TextStyle(color: Colors.white38)),
+                    );
+                  }
+                  return ListView.builder(
+                    itemCount: notifications.length,
+                    itemBuilder: (context, index) => ExpandableNotificationItem(
+                      notification: notifications[index],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
 
@@ -275,6 +402,8 @@ class _StaffViewState extends State<StaffView> with WidgetsBindingObserver {
           _fetchCompanyName();
           _fetchAssignedOrders();
           _setupAssignedOrdersRealtime();
+          _fetchNotificationsCount();
+          _setupNotificationRealtime();
           _startLocationUpdates();
         }
 
@@ -788,6 +917,39 @@ class _StaffViewState extends State<StaffView> with WidgetsBindingObserver {
         ),
         automaticallyImplyLeading: false,
         actions: [
+          Stack(
+            children: [
+              IconButton(
+                onPressed: _showNotificationsSheet,
+                icon: const Icon(Icons.notifications_outlined, color: Colors.white70),
+              ),
+              if (_unreadNotificationsCount > 0)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: Colors.redAccent,
+                      shape: BoxShape.circle,
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 16,
+                      minHeight: 16,
+                    ),
+                    child: Text(
+                      '$_unreadNotificationsCount',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 8,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
+          ),
           IconButton(
             onPressed: () {
               Navigator.push(

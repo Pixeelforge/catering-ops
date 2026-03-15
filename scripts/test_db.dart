@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:supabase/supabase.dart';
 
 void main() async {
   final envFile = File('apps/mobile_app/assets/.env');

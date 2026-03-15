@@ -41,6 +41,7 @@ serve(async (req) => {
     } else if (companyId) {
       body.filters = [
         { field: "tag", key: "company_id", relation: "=", value: companyId },
+        { operator: "AND" },
         { field: "tag", key: "role", relation: "=", value: "staff" },
       ]
     }

@@ -6,7 +6,6 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../services/notification_service.dart';
-import 'package:onesignal_flutter/onesignal_flutter.dart';
 import '../../features/inventory/inventory_list_screen.dart';
 import '../shared/settings_screen.dart';
 import '../../features/orders/signature_pad_dialog.dart';
@@ -19,7 +18,7 @@ class StaffView extends StatefulWidget {
   State<StaffView> createState() => _StaffViewState();
 }
 
-class _StaffViewState extends State<StaffView> {
+class _StaffViewState extends State<StaffView> with WidgetsBindingObserver {
   final supabase = Supabase.instance.client;
   bool _loading = true;
   String? _companyId;
@@ -203,7 +202,21 @@ class _StaffViewState extends State<StaffView> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // 🔹 Re-sync tags whenever app comes to foreground
+      if (_companyId != null) {
+        NotificationService.refreshTags(
+          companyId: _companyId!,
+          role: 'staff',
+        );
+      }
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _companyCodeCtrl.dispose();
     _requestSubscription?.unsubscribe();
     _profileSubscription?.unsubscribe();
@@ -216,6 +229,7 @@ class _StaffViewState extends State<StaffView> {
     }
     super.dispose();
   }
+
 
   Future<void> _fetchStaffProfile() async {
     final user = supabase.auth.currentUser;
@@ -242,33 +256,30 @@ class _StaffViewState extends State<StaffView> {
           .eq('id', user.id)
           .maybeSingle();
 
-      if (mounted) {
+      if (mounted && res != null) {
         setState(() {
-          _staffName = res?['full_name'];
-          _companyId = res?['company_id'];
+          _staffName = res['full_name'] ?? 'Staff Member';
+          _companyId = res['company_id'];
           _loading = false;
         });
 
-        // 2. Save to Cache
-        if (res != null) {
-          CacheService.save('profile_${user.id}', res);
-        }
-
+        // 🔹 Log in to OneSignal and refresh tags
+        await NotificationService.login(user.id);
         if (_companyId != null) {
+          await NotificationService.refreshTags(
+            companyId: _companyId!,
+            role: 'staff',
+          );
+
+          // 🔹 Handle after-effects of having a company
           _fetchCompanyName();
-          // Login user to OneSignal
-          NotificationService.login(user.id);
-          OneSignal.User.addTags({
-            'company_id': _companyId!,
-            'role': 'staff',
-            'full_name': _staffName ?? 'Staff',
-          });
-          
-          // Fetch orders NOW that we have _companyId
           _fetchAssignedOrders();
           _setupAssignedOrdersRealtime();
           _startLocationUpdates();
         }
+
+        // 2. Save to Cache
+        CacheService.save('profile_${user.id}', res);
       }
     } catch (e) {
       debugPrint('Error fetching staff profile: $e');
@@ -1852,6 +1863,8 @@ class _StaffViewState extends State<StaffView> {
           schema: 'public',
           table: 'orders',
           callback: (payload) {
+            debugPrint('REALTIME ORDER UPDATE: ${payload.eventType}');
+            
             final newRecord = payload.newRecord;
             final oldRecord = payload.oldRecord;
             final isNowOpen = newRecord['is_delivery_open'] == true;

@@ -4,5 +4,5 @@ class Env {
   static String get supabaseUrl => dotenv.env['SUPABASE_URL']!;
   static String get supabaseAnonKey => dotenv.env['SUPABASE_ANON_KEY']!;
   static String get oneSignalAppId => dotenv.env['ONESIGNAL_APP_ID']!;
-  static String get oneSignalRestKey => dotenv.env['ONESIGNAL_REST_API_KEY']!;
+  // REST API Key removed for security. Handled by Supabase Edge Functions.
 }

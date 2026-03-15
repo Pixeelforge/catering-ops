@@ -6,6 +6,8 @@
 *-firebase-adminsdk-*.json
 cater-ops-*.json
 service-account.json
+onesignal_app.json
+
 
 # Flutter / Dart
 .dart_tool/

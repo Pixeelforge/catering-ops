@@ -1,13 +1,12 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:onesignal_flutter/onesignal_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/env.dart';
 import '../main.dart';
 
 class NotificationService {
   static String get appId => Env.oneSignalAppId;
-  static String get restApiKey => Env.oneSignalRestKey;
+  // REST API Key removed for security, now handled by Supabase Edge Functions
   static bool _isInitialized = false;
 
   /// Initialize OneSignal globally (called in main.dart)
@@ -19,6 +18,12 @@ class NotificationService {
       
       // Opt-in for notifications
       OneSignal.Notifications.requestPermission(true);
+
+      // 🔹 FORWARD DISPLAY (Ensure it pops up when app is open)
+      OneSignal.Notifications.addForegroundWillDisplayListener((event) {
+        debugPrint('🔔 OneSignal: Foreground Notification: ${event.notification.title}');
+        event.notification.display(); // Force display even in foreground
+      });
 
       // 🔹 Notification Click Handling (Deep Linking)
       OneSignal.Notifications.addClickListener((event) {
@@ -54,15 +59,37 @@ class NotificationService {
   static int targetTab = 0; // Helper for Deep Linking
 
   /// Login user to OneSignal once Supabase auth is resolved
-  static void login(String userId) {
-    if (!_isInitialized) {
-      debugPrint('🔔 OneSignal Warning: login() called before setupOneSignal()');
-    }
+  static Future<void> login(String userId) async {
     try {
-      debugPrint('🔔 OneSignal: Logging in user: $userId');
-      OneSignal.login(userId);
+      await OneSignal.login(userId);
+      debugPrint("OneSignal: Logged in user $userId");
     } catch (e) {
-      debugPrint('🔔 OneSignal Error: Login failed: $e');
+      debugPrint("OneSignal: Error logging in (already handled?): $e");
+    }
+  }
+
+  static Future<void> refreshTags({
+    required String companyId,
+    required String role,
+  }) async {
+    try {
+      await OneSignal.User.addTags({
+        'company_id': companyId,
+        'role': role,
+      });
+      debugPrint("OneSignal: Tags refreshed ($role, $companyId)");
+    } catch (e) {
+      debugPrint("OneSignal: Error refreshing tags: $e");
+    }
+  }
+
+  static Future<void> logout() async {
+    try {
+      await OneSignal.logout();
+      await OneSignal.User.removeTag('company_id');
+      await OneSignal.User.removeTag('role');
+    } catch (e) {
+      debugPrint("OneSignal: Error logging out: $e");
     }
   }
 
@@ -77,6 +104,25 @@ class NotificationService {
     );
   }
 
+  /// Centralized logic to send notifications via Supabase Edge Function
+  static Future<String?> _invokeNotifyFunction(Map<String, dynamic> payload) async {
+    try {
+      final response = await Supabase.instance.client.functions.invoke(
+        'send-notification',
+        body: payload,
+      );
+
+      if (response.status == 200) {
+        debugPrint('🔔 Edge Function: Success: ${response.data}');
+        return null;
+      } else {
+        return 'Edge Function Error: ${response.status}: ${response.data}';
+      }
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
   static Future<String?> sendNotification({
     required List<String> playerIds,
     required String title,
@@ -85,51 +131,22 @@ class NotificationService {
     String color = 'FFD4A237',
     DateTime? sendAfter,
   }) async {
-    try {
-      debugPrint('🔔 OneSignal: Sending notification to $playerIds: "$title"${sendAfter != null ? " (Scheduled for $sendAfter)" : ""}');
-      
-      final Map<String, dynamic> body = {
-        'app_id': appId,
-        'include_external_user_ids': playerIds,
-        'headings': {'en': title},
-        'contents': {'en': message},
-        'data': data,
-        'android_accent_color': color,
-        'small_icon': 'ic_launcher',
-        'large_icon': 'ic_launcher',
-        'priority': 10, // High priority for heads-up
-        'android_visibility': 1, // Public
-        'ios_sound': 'default',
-      };
+    debugPrint('🔔 OneSignal: Requesting notification trigger for $playerIds');
+    
+    final payload = {
+      'playerIds': playerIds,
+      'title': title,
+      'message': message,
+      'data': data,
+      'color': color,
+      if (sendAfter != null) 'sendAfter': sendAfter.toUtc().toIso8601String(),
+    };
 
-      if (sendAfter != null) {
-        // OneSignal expects ISO-8601 for send_after
-        body['send_after'] = sendAfter.toUtc().toIso8601String();
-      }
-
-      final response = await http.post(
-        Uri.parse('https://onesignal.com/api/v1/notifications'),
-        headers: {
-          'Content-Type': 'application/json; charset=utf-8',
-          'Authorization': 'Basic $restApiKey',
-         },
-        body: jsonEncode(body),
-      );
-
-      if (response.statusCode == 200) {
-        debugPrint('🔔 OneSignal: Success: ${response.body}');
-        _showTriggerToast(title);
-        return null;
-      } else {
-        final err = 'OneSignal API Error: Status ${response.statusCode}: ${response.body}';
-        debugPrint('🔔 OneSignal Error: $err');
-        return err;
-      }
-    } catch (e) {
-      final err = e.toString();
-      debugPrint('🔔 OneSignal Error: $err');
-      return err;
+    final err = await _invokeNotifyFunction(payload);
+    if (err == null) {
+      _showTriggerToast(title);
     }
+    return err;
   }
 
   /// Private helper to show a confirmation toast globally
@@ -182,53 +199,21 @@ class NotificationService {
     String color = 'FFD4A237',
     DateTime? sendAfter,
   }) async {
-    try {
-      debugPrint('🔔 OneSignal: Sending company notification ($companyId): "$title"');
-      
-      final Map<String, dynamic> body = {
-        'app_id': appId,
-        'filters': [
-          {'field': 'tag', 'key': 'company_id', 'relation': '=', 'value': companyId},
-          {'field': 'tag', 'key': 'role', 'relation': '=', 'value': 'staff'},
-        ],
-        'headings': {'en': title},
-        'contents': {'en': message},
-        'data': data,
-        'android_accent_color': color,
-        'small_icon': 'ic_launcher',
-        'large_icon': 'ic_launcher',
-        'priority': 10,
-        'android_visibility': 1,
-        'ios_sound': 'default',
-      };
+    debugPrint('🔔 OneSignal: Requesting company notification ($companyId)');
+    
+    final payload = {
+      'companyId': companyId,
+      'title': title,
+      'message': message,
+      'data': data,
+      'color': color,
+      if (sendAfter != null) 'sendAfter': sendAfter.toUtc().toIso8601String(),
+    };
 
-      if (sendAfter != null) {
-        body['send_after'] = sendAfter.toUtc().toIso8601String();
-      }
-
-      final response = await http.post(
-        Uri.parse('https://onesignal.com/api/v1/notifications'),
-        headers: {
-          'Content-Type': 'application/json; charset=utf-8',
-          'Authorization': 'Basic $restApiKey',
-        },
-        body: jsonEncode(body),
-      );
-
-      if (response.statusCode == 200) {
-        debugPrint('🔔 OneSignal: Success: ${response.body}');
-        _showTriggerToast(title);
-        return null;
-      } else {
-        final err =
-            'OneSignal API Error: Status ${response.statusCode}: ${response.body}';
-        debugPrint('🔔 OneSignal Error: $err');
-        return err;
-      }
-    } catch (e) {
-      final err = e.toString();
-      debugPrint('🔔 OneSignal Error: $err');
-      return err;
+    final err = await _invokeNotifyFunction(payload);
+    if (err == null) {
+      _showTriggerToast(title);
     }
+    return err;
   }
 }

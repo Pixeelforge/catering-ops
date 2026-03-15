@@ -234,6 +234,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   },
                 ),
 
+                const SizedBox(height: 16),
+                _buildSettingTile(
+                  icon: Icons.code_rounded,
+                  title: 'Meet Our Developers',
+                  subtitle: 'The minds behind Catering Ops',
+                  color: Colors.purpleAccent,
+                  onTap: () => Navigator.pushNamed(context, '/meet-developers'),
+                ),
+
                 const SizedBox(height: 40),
                 Center(
                   child: Text(

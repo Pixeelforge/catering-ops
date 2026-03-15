@@ -8,6 +8,7 @@ import 'role_views/owner/join_requests_screen.dart';
 import 'core/env.dart';
 import 'services/notification_service.dart';
 import 'services/cache_service.dart';
+import 'features/settings/screens/meet_developers_screen.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -64,6 +65,7 @@ class MyApp extends StatelessWidget {
         '/signup': (context) => const SignUpScreen(),
         '/dashboard': (context) => const DashboardScreen(),
         '/join_requests': (context) => const JoinRequestsScreen(),
+        '/meet-developers': (context) => const MeetOurDevelopersScreen(),
       },
     );
   }

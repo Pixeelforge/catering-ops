@@ -1989,6 +1989,41 @@ Please ensure timely delivery!
                               },
                               color: 'FFD4A237', // Gold/Amber
                             );
+
+                            // 🔹 Schedule Reminders (6h & 2h)
+                            if (eventDateRaw != null) {
+                              try {
+                                final eventDate = DateTime.parse(eventDateRaw);
+                                final now = DateTime.now().toUtc();
+                                final formattedTimeStr = DateFormat('h:mm a').format(eventDate.toLocal());
+
+                                final reminder6h = eventDate.subtract(const Duration(hours: 6));
+                                if (reminder6h.isAfter(now)) {
+                                  NotificationService.sendNotification(
+                                    playerIds: [selectedStaffId],
+                                    title: 'Upcoming Order Reminder! ⏰',
+                                    message: 'Reminder: Order for $clientName is scheduled for $formattedTimeStr.',
+                                    data: {'type': 'order_reminder'},
+                                    color: 'FFFF9800',
+                                    sendAfter: reminder6h,
+                                  );
+                                }
+
+                                final reminder2h = eventDate.subtract(const Duration(hours: 2));
+                                if (reminder2h.isAfter(now)) {
+                                  NotificationService.sendNotification(
+                                    playerIds: [selectedStaffId],
+                                    title: '🚨 EMERGENCY: Order Starting Soon! 🚨',
+                                    message: 'URGENT: Order for $clientName starts in 2 hours ($formattedTimeStr)!',
+                                    data: {'type': 'order_reminder'},
+                                    color: 'FFF44336',
+                                    sendAfter: reminder2h,
+                                  );
+                                }
+                              } catch (e) {
+                                debugPrint('Error scheduling staff reminders: $e');
+                              }
+                            }
                           } else if (assignmentType == 'direct_claim') {
                             // Scenario 5: Fastest claim
                             NotificationService.sendToCompany(

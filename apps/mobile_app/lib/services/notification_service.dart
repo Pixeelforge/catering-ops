@@ -95,8 +95,11 @@ class NotificationService {
         'contents': {'en': message},
         'data': data,
         'android_accent_color': color,
-        'small_icon': 'ic_launcher', // Use the new app logo
+        'small_icon': 'ic_launcher',
         'large_icon': 'ic_launcher',
+        'priority': 10, // High priority for heads-up
+        'android_visibility': 1, // Public
+        'ios_sound': 'default',
       };
 
       if (sendAfter != null) {
@@ -192,10 +195,15 @@ class NotificationService {
         'contents': {'en': message},
         'data': data,
         'android_accent_color': color,
+        'small_icon': 'ic_launcher',
+        'large_icon': 'ic_launcher',
+        'priority': 10,
+        'android_visibility': 1,
+        'ios_sound': 'default',
       };
 
       if (sendAfter != null) {
-        body['send_after'] = sendAfter.toUtc().toIso8601String().replaceFirst('Z', ' GMT+0000');
+        body['send_after'] = sendAfter.toUtc().toIso8601String();
       }
 
       final response = await http.post(

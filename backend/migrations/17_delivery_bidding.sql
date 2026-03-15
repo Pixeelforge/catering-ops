@@ -37,10 +37,9 @@ CREATE POLICY "Owners can view all bids for their orders" ON public.delivery_bid
         )
     );
 
--- 🔹 4. RPC TO RESOLVE AUCTIONS
 -- Finds the lowest bid and assigns the order when the timer expires
 CREATE OR REPLACE FUNCTION public.resolve_delivery_auction(p_order_id UUID)
-RETURNS void
+RETURNS JSON
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
@@ -58,11 +57,11 @@ BEGIN
 
     -- 2. Validate it's actually eligible
     IF NOT v_is_open THEN
-        RETURN; -- Already closed/resolved
+        RETURN json_build_object('was_resolved', false, 'winning_staff_id', NULL); 
     END IF;
 
     IF v_bidding_ends_at IS NULL OR v_bidding_ends_at > NOW() THEN
-        RETURN; -- Timer hasn't expired yet
+        RETURN json_build_object('was_resolved', false, 'winning_staff_id', NULL);
     END IF;
 
     -- 3. Find the lowest bid
@@ -73,15 +72,28 @@ BEGIN
     ORDER BY bid_amount ASC, created_at ASC
     LIMIT 1;
 
-    -- 4. If someone bid, assign them. If NO ONE bid, keep it open but maybe clear the timer?
-    -- For now, if no one bids, we'll leave it open for someone else to claim or owner to re-assign.
+    -- 4. If someone bid, assign them.
     IF v_winning_staff_id IS NOT NULL THEN
         UPDATE public.orders
         SET 
             delivery_staff_id = v_winning_staff_id,
             delivery_fare = v_winning_bid,
-            is_delivery_open = false
+            is_delivery_open = false,
+            delivery_bidding_ends_at = NULL -- Clear the timer
         WHERE id = p_order_id;
+        
+        RETURN json_build_object('was_resolved', true, 'winning_staff_id', v_winning_staff_id);
+    ELSE
+        -- No bids, maybe clear the timer but keep it open?
+        -- Actually, if timer expired and no bids, we should probably close the bidding status
+        -- but leave it as a "Fastest claim (Direct)" or let owner re-assign.
+        UPDATE public.orders
+        SET 
+            delivery_bidding_ends_at = NULL,
+            is_delivery_open = true -- Keep it open for direct claim
+        WHERE id = p_order_id;
+        
+        RETURN json_build_object('was_resolved', false, 'winning_staff_id', NULL);
     END IF;
 END;
 $$;

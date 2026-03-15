@@ -142,7 +142,6 @@ class _JoinRequestsScreenState extends State<JoinRequestsScreen> {
 
       if (status == 'accepted') {
         // Scenario 2: Notify Staff when their request is accepted
-        // First get the staff's player_id or use their user_id
         final reqData = _requests.firstWhere((r) => r['id'] == requestId, orElse: () => {});
         final staffId = reqData['profiles']?['id'];
         
@@ -153,6 +152,20 @@ class _JoinRequestsScreenState extends State<JoinRequestsScreen> {
             message: 'You have been added to the company team. Welcome aboard!',
             data: {'type': 'request_accepted'},
             color: 'FF4CAF50', // Green
+          );
+        }
+      } else if (status == 'rejected') {
+        // Scenario: Notify Staff when their request is rejected
+        final reqData = _requests.firstWhere((r) => r['id'] == requestId, orElse: () => {});
+        final staffId = reqData['profiles']?['id'];
+        
+        if (staffId != null) {
+          await NotificationService.sendNotification(
+            playerIds: [staffId],
+            title: 'Request Update ❌',
+            message: 'Your request to join the company was not accepted.',
+            data: {'type': 'request_rejected'},
+            color: 'FFF44336', // Red
           );
         }
       }

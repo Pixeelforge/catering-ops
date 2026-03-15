@@ -332,15 +332,17 @@ class _StaffViewState extends State<StaffView> {
             column: 'id',
             value: user.id,
           ),
-          callback: (payload) {
-            final newId = payload.newRecord['company_id'];
+          callback: (payload) async {
+            final newData = payload.newRecord;
+            final newId = newData['company_id'];
 
             // 🔹 Case 1: Staff joined a company
             if (newId != null && _companyId == null) {
-              _audioPlayer.play(AssetSource('sounds/notification.mp3'));
+              _audioPlayer.play(AssetSource('sounds/notification.mp3')).catchError((_) {});
               if (mounted) {
                 setState(() {
                   _companyId = newId;
+                  _pendingRequest = null; // Clear pending screen immediately
                 });
                 _fetchCompanyName();
                 _fetchAssignedOrders();
@@ -353,7 +355,9 @@ class _StaffViewState extends State<StaffView> {
               }
             }
 
+            // Always sync profile and request status just in case
             _fetchStaffProfile();
+            _fetchRequestStatus();
           },
         )
         .subscribe();
@@ -554,38 +558,54 @@ class _StaffViewState extends State<StaffView> {
           ),
         ],
       ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.hourglass_empty_rounded,
-                size: 80,
-                color: Colors.orangeAccent,
-              ),
-              const SizedBox(height: 32),
-              const Text(
-                'Request Pending',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
+      body: RefreshIndicator(
+        onRefresh: () async {
+          _fetchRequestStatus();
+          _fetchStaffProfile();
+        },
+        color: Colors.orangeAccent,
+        backgroundColor: const Color(0xFF161626),
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Container(
+            constraints: BoxConstraints(
+              minHeight: MediaQuery.of(context).size.height - 100,
+            ),
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.hourglass_empty_rounded,
+                      size: 80,
+                      color: Colors.orangeAccent,
+                    ),
+                    const SizedBox(height: 32),
+                    const Text(
+                      'Request Pending',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Your request to join "$companyName" is waiting for approval.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.6),
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 48),
+                    const CircularProgressIndicator(color: Colors.orangeAccent),
+                  ],
                 ),
               ),
-              const SizedBox(height: 16),
-              Text(
-                'Your request to join "$companyName" is waiting for approval.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.6),
-                  fontSize: 16,
-                ),
-              ),
-              const SizedBox(height: 48),
-              const CircularProgressIndicator(color: Colors.orangeAccent),
-            ],
+            ),
           ),
         ),
       ),
@@ -616,100 +636,109 @@ class _StaffViewState extends State<StaffView> {
           ),
         ],
       ),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.orangeAccent.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.business_center,
-                  size: 60,
-                  color: Colors.orangeAccent,
-                ),
-              ),
-              const SizedBox(height: 32),
-              const Text(
-                'Join Your Team',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Enter the Company ID provided by your owner to access the dashboard.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.5),
-                  fontSize: 14,
-                ),
-              ),
-              const SizedBox(height: 48),
-              TextField(
-                controller: _companyCodeCtrl,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontFamily: 'monospace',
-                ),
-                decoration: InputDecoration(
-                  labelText: 'Company ID',
-                  labelStyle: const TextStyle(color: Colors.white54),
-                  filled: true,
-                  fillColor: Colors.white.withValues(alpha: 0.05),
-                  prefixIcon: const Icon(
-                    Icons.vpn_key_outlined,
+      body: RefreshIndicator(
+        onRefresh: () async {
+          _fetchRequestStatus();
+          _fetchStaffProfile();
+        },
+        color: Colors.orangeAccent,
+        backgroundColor: const Color(0xFF161626),
+        child: Center(
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.orangeAccent.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.business_center,
+                    size: 60,
                     color: Colors.orangeAccent,
                   ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide.none,
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: const BorderSide(color: Colors.orangeAccent),
+                ),
+                const SizedBox(height: 32),
+                const Text(
+                  'Join Your Team',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                height: 55,
-                child: ElevatedButton(
-                  onPressed: _submittingCode ? null : _joinCompany,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orangeAccent,
-                    shape: RoundedRectangleBorder(
+                const SizedBox(height: 12),
+                Text(
+                  'Enter the Company ID provided by your owner to access the dashboard.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.5),
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 48),
+                TextField(
+                  controller: _companyCodeCtrl,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontFamily: 'monospace',
+                  ),
+                  decoration: InputDecoration(
+                    labelText: 'Company ID',
+                    labelStyle: const TextStyle(color: Colors.white54),
+                    filled: true,
+                    fillColor: Colors.white.withValues(alpha: 0.05),
+                    prefixIcon: const Icon(
+                      Icons.vpn_key_outlined,
+                      color: Colors.orangeAccent,
+                    ),
+                    border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: const BorderSide(color: Colors.orangeAccent),
                     ),
                   ),
-                  child: _submittingCode
-                      ? const SizedBox(
-                          height: 24,
-                          width: 24,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : const Text(
-                          'JOIN COMPANY',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  height: 55,
+                  child: ElevatedButton(
+                    onPressed: _submittingCode ? null : _joinCompany,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orangeAccent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: _submittingCode
+                        ? const SizedBox(
+                            height: 24,
+                            width: 24,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Text(
+                            'JOIN COMPANY',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1362,6 +1391,26 @@ class _StaffViewState extends State<StaffView> {
         'staff_id': user.id,
         'bid_amount': bidAmount,
       }, onConflict: 'order_id,staff_id');
+
+      // Notify Owner of the bid
+      final orderRes = await supabase
+          .from('orders')
+          .select('client_name, companies(owner_id)')
+          .eq('id', orderId)
+          .maybeSingle();
+      
+      if (orderRes != null && orderRes['companies'] != null) {
+        final ownerId = (orderRes['companies'] as Map)['owner_id'];
+        final clientName = orderRes['client_name'];
+        NotificationService.sendNotification(
+          playerIds: [ownerId.toString()],
+          title: 'New Bid Received! 🔨',
+          message: '$_staffName placed a bid of ₹${bidAmount.toStringAsFixed(0)} for $clientName.',
+          data: {'type': 'order_bid', 'order_id': orderId},
+          color: 'FF9C27B0', // Purple
+        );
+      }
+
       _showToast('Bid placed! ₹${bidAmount.toStringAsFixed(0)}', Colors.green);
       if (mounted) setState(() {}); // Refresh to show current bid
     } catch (e) {

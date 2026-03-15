@@ -32,12 +32,12 @@ class NotificationService {
             // Join Requests (Index 2 for Owner)
             NotificationService.targetTab = 2;
             navigatorKey.currentState?.pushNamedAndRemoveUntil('/dashboard', (route) => false);
-          } else if (['direct_assignment', 'bidding', 'fastest_claim', 'order_delivered', 'order_reminder'].contains(type)) {
-            // Orders Page (Index 1 for Owner)
+          } else if (['direct_assignment', 'bidding', 'fastest_claim', 'order_delivered', 'order_reminder', 'auction_won', 'request_accepted', 'request_rejected', 'order_bid'].contains(type)) {
+            // Orders Page (Index 1 for Owner) or main StaffView
             NotificationService.targetTab = 1;
             navigatorKey.currentState?.pushNamedAndRemoveUntil('/dashboard', (route) => false);
           } else {
-            // Default Dashbord (Index 0)
+            // Default Dashboard (Index 0)
             NotificationService.targetTab = 0;
             navigatorKey.currentState?.pushNamedAndRemoveUntil('/dashboard', (route) => false);
           }
@@ -114,6 +114,7 @@ class NotificationService {
 
       if (response.statusCode == 200) {
         debugPrint('🔔 OneSignal: Success: ${response.body}');
+        _showTriggerToast(title);
         return null;
       } else {
         final err = 'OneSignal API Error: Status ${response.statusCode}: ${response.body}';
@@ -124,6 +125,48 @@ class NotificationService {
       final err = e.toString();
       debugPrint('🔔 OneSignal Error: $err');
       return err;
+    }
+  }
+
+  /// Private helper to show a confirmation toast globally
+  static void _showTriggerToast(String title) {
+    final context = navigatorKey.currentContext;
+    if (context != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.notifications_active, color: Colors.orangeAccent),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Notification Sent',
+                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                    ),
+                    Text(
+                      title,
+                      style: const TextStyle(fontSize: 12, color: Colors.white70),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: const Color(0xFF161626),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: const BorderSide(color: Colors.orangeAccent, width: 0.5),
+          ),
+        ),
+      );
     }
   }
 
@@ -165,6 +208,7 @@ class NotificationService {
 
       if (response.statusCode == 200) {
         debugPrint('🔔 OneSignal: Success: ${response.body}');
+        _showTriggerToast(title);
         return null;
       } else {
         final err =

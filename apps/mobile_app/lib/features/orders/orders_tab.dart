@@ -1101,7 +1101,24 @@ Please ensure timely delivery!
                                             'resolve_delivery_auction',
                                             params: {'p_order_id': order['id']},
                                           )
-                                          .then((_) => _fetchOrders());
+                                          .then((res) {
+                                        final data = res as Map<String, dynamic>;
+                                        if (data['was_resolved'] == true &&
+                                            data['winning_staff_id'] != null) {
+                                          NotificationService.sendNotification(
+                                            playerIds: [data['winning_staff_id']],
+                                            title: 'You won the auction! 🏆',
+                                            message:
+                                                'You have been assigned the delivery for ${order['client_name']}.',
+                                            data: {
+                                              'type': 'auction_won',
+                                              'order_id': order['id']
+                                            },
+                                            color: 'FF4CAF50',
+                                          );
+                                        }
+                                        _fetchOrders();
+                                      });
                                       return const Text(
                                         'Resolving Auction...',
                                         style: TextStyle(

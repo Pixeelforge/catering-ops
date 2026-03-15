@@ -1,0 +1,11 @@
+name: catering_ops_scripts
+description: Root scripts for catering ops
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  http: ^1.2.0
+  supabase_flutter: ^2.12.0

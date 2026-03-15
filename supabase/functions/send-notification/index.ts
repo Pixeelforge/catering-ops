@@ -3,23 +3,9 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 const ONESIGNAL_APP_ID = Deno.env.get("ONESIGNAL_APP_ID")
 const ONESIGNAL_REST_API_KEY = Deno.env.get("ONESIGNAL_REST_API_KEY")
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
-
 serve(async (req) => {
-  // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
-
   try {
     const { playerIds, companyId, title, message, data, color, sendAfter, filters } = await req.json()
-
-    if (!title || !message) {
-      throw new Error("Title and message are required")
-    }
 
     const body: any = {
       app_id: ONESIGNAL_APP_ID,
@@ -29,6 +15,7 @@ serve(async (req) => {
       android_accent_color: color || "FFD4A237",
       small_icon: "ic_launcher",
       large_icon: "ic_launcher",
+
       priority: 10,
       android_visibility: 1,
       ios_sound: "default",
@@ -60,12 +47,12 @@ serve(async (req) => {
 
     const result = await response.json()
     return new Response(JSON.stringify(result), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json" },
       status: response.status,
     })
   } catch (error) {
     return new Response(JSON.stringify({ error: error.message }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json" },
       status: 400,
     })
   }

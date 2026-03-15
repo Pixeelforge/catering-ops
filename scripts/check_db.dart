@@ -2,16 +2,20 @@ import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() async {
-  final envFile = File('assets/.env');
+  final envFile = File('apps/mobile_app/assets/.env');
   final envLines = await envFile.readAsLines();
 
   String? url;
   String? anon;
 
   for (final line in envLines) {
-    if (line.startsWith('SUPABASE_URL=')) url = line.split('=')[1];
-    if (line.startsWith('SUPABASE_ANON_KEY='))
-      anon = line.substring('SUPABASE_ANON_KEY='.length);
+    if (line.contains('=')) {
+      final parts = line.split('=');
+      final key = parts[0].trim();
+      final value = parts.sublist(1).join('=').trim();
+      if (key == 'SUPABASE_URL') url = value;
+      if (key == 'SUPABASE_ANON_KEY') anon = value;
+    }
   }
 
   final supabase = SupabaseClient(url!, anon!);

@@ -27,7 +27,17 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-          # Removed specific version to use latest stable
+
+      - name: Create .env file
+        shell: bash
+        run: |
+          mkdir -p apps/mobile_app/assets
+          if [ -n "${{ secrets.ENV_FILE }}" ]; then
+            echo "${{ secrets.ENV_FILE }}" > apps/mobile_app/assets/.env
+          else
+            echo "Using placeholder .env file"
+            cp apps/mobile_app/assets/.env.example apps/mobile_app/assets/.env
+          fi
           
       - name: Install dependencies
         run: |

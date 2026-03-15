@@ -1,229 +1,160 @@
+# 🍽️ Catering Ops
 
-# Problem Context
-
-catering and event-service businesses often run their operations using a mix of notebooks, phone calls, and WhatsApp messages. Orders arrive through chat or voice notes, staff are coordinated manually, and payments are tracked separately in ledgers. As the number of functions grows, this informal system becomes difficult to manage and leads to missed details, delays, and financial leakage.
-
-Catering Ops replaces this fragmented process with a single operational system designed specifically for businesses that receive client orders and coordinate deliveries or services.
+> A production-grade mobile operations platform for catering and event-service businesses — built with Flutter & Supabase.
 
 ---
 
-Operational Workflow
+## 🚨 Problem Context
 
-Workflow Without Catering Ops (Current Reality)
+Catering businesses run on WhatsApp messages, phone calls, and physical notebooks. As orders grow, this informal system causes missed details, payment leakage, and operational chaos.
 
-A typical catering workflow today looks like this:
-
-1. **Client Order**
-
-   * A client contacts the caterer via phone call or WhatsApp.
-   * Order details are shared through voice notes or text messages.
-   * Important information such as date, menu items, location, and quantity is often scattered across messages.
-
-2. **Order Recording**
-
-   * The owner writes the order in a physical notebook or tries to remember the details.
-   * If the order came through multiple messages, information can easily be missed or miswritten.
-
-3. **Staff Coordination**
-
-   * Most catering workers are part-time.
-   * The owner calls multiple workers individually to check availability.
-   * Staff confirmations are tracked manually or remembered.
-
-4. **Location Sharing**
-
-   * Event location is copied from WhatsApp and sent manually to staff.
-   * Sometimes different staff receive different or incomplete location information.
-
-5. **Inventory Planning**
-
-   * If multiple functions are scheduled for the same day, the owner manually calculates total ingredients needed.
-   * Mistakes often lead to shortages or over-purchasing.
-
-6. **Event Execution**
-
-   * Staff arrive at the venue and complete the delivery or service.
-   * Confirmation of completion is usually verbal or through a phone call.
-
-7. **Payment Tracking**
-
-   * Payments are often handled through middlemen or event coordinators.
-   * Owners record balances in a notebook or memory.
-   * Outstanding dues can easily be forgotten.
-
-**Result**
-
-Operations are spread across multiple tools:
-
-* WhatsApp
-* Phone calls
-* Notebooks
-* Memory
-
-This creates administrative chaos as the business grows.
+**Catering Ops replaces all of that with one app.**
 
 ---
 
-## Workflow With Catering Ops
+## 📱 App Overview
 
-Catering Ops centralizes the entire operation into one application.
-
-### 1. Order Creation
-
-The owner receives an order from a client through call or WhatsApp.
-
-The owner opens **Order Hub** and records only the necessary details:
-
-* Event date
-* Menu items
-* Pricing
-* Venue location
-* Optional middleman selection
-
-The system allows flexibility — the owner can enter only the information they want.
+Catering Ops is a **multi-tenant SaaS mobile app** with two roles:
+- **Owner** — Creates and manages orders, assigns staff, tracks payments.
+- **Staff** — Receives assignments, claims deliveries, shares live location.
 
 ---
 
-### 2. Order Organization
+## ✨ Core Features
 
-Once created, the order appears in the **Order Dashboard** where:
+### 👑 Owner Features
 
-* Events are automatically sorted by event time
-* Urgent upcoming events are highlighted with **NEXT UP indicators**
-* Owners can quickly see the full schedule of upcoming functions
+| Feature | Description |
+|---|---|
+| **Order Hub** | Create orders with event date, menu, pricing, venue, and middleman |
+| **Smart Dashboard** | Orders auto-sorted by time. NEXT UP banner highlights the urgent one |
+| **Staff Assignment** | Assign to specific staff, open for bidding, or fastest claim |
+| **Delivery Bidding** | Staff can place bids; owner picks the best offer |
+| **Venue Sharing** | Paste any Google Maps or WhatsApp location link — auto-parsed |
+| **Khata (Ledger)** | Track middleman / client balances automatically |
+| **Payment Tracking** | Mark orders as paid; runs a live outstanding balance |
+| **Staff Management** | Approve/reject join requests from staff via unique company code |
+| **Signature Capture** | Collect digital signatures for completed deliveries |
 
----
+### 👷 Staff Features
 
-### 3. Staff Assignment
+| Feature | Description |
+|---|---|
+| **Assigned Orders** | See all orders assigned to you, sorted by urgency |
+| **Live Location Share** | One-tap location sharing with owner during delivery |
+| **Claim/Bid Delivery** | Claim open deliveries instantly or place competitive bids |
+| **Order Reminders** | Auto-alerts 6 hours and 2 hours before every event |
 
-The owner has two options:
+### 🔔 Notification System
 
-**Direct Assignment**
+| Trigger | Who Gets It |
+|---|---|
+| New Order Assigned | Specific Staff Member |
+| Open for Bidding | All Staff in Company |
+| Fastest Claim Available | All Staff in Company |
+| Staff Join Request | Owner |
+| Order Reminder (6h / 2h) | Assigned Staff |
 
-* Select staff directly within the order.
-
-**Staff Pool**
-
-* Post the task to the staff pool where available workers can claim the job.
-
-Once assigned:
-
-* Staff automatically receive event details
-* Venue location is shared automatically
-
-No manual calling or WhatsApp location sharing is required.
-
----
-
-### 4. Venue Coordination
-
-Owners can paste:
-
-* Google Maps links
-* WhatsApp location messages
-
-The system detects the location and attaches it to the order so all staff receive the correct venue details.
+All notifications are secured via **Supabase Edge Functions** — no API keys are exposed in the app.
 
 ---
 
+## 🛠️ Tech Stack
 
-5. Payment & Balance Tracking
-
-If the order was arranged through a middleman or regular client:
-
-* The order can be linked to their **Khata account**
-* Balances are automatically updated when pricing is entered
-* Owners mark payments when they receive them
-
-This keeps a running record of outstanding balances.
-
----
-
-6. Operational Visibility
-
-At any time, the owner can see:
-
-* Upcoming events
-* Staff assignments
-* Delivery status
-* Outstanding payments
-
-Everything is organized in a single operational dashboard.
+| Layer | Technology |
+|---|---|
+| Mobile App | Flutter (Dart) |
+| Backend / Database | Supabase (PostgreSQL) |
+| Authentication | Supabase Auth |
+| Push Notifications | OneSignal (via Supabase Edge Function) |
+| Realtime Updates | Supabase Realtime (WebSockets) |
+| Location | Geolocator |
+| Cloud Functions | Supabase Edge Functions (Deno/TypeScript) |
+| CI/CD | GitHub Actions |
 
 ---
 
-# Who This App Is For
+## 🔒 Security Architecture
 
-Although designed initially for **catering businesses**, the system can support any business model where:
-
-* clients place orders
-* the business coordinates workers or deliveries
-* orders must be scheduled and fulfilled
-
-Examples include:
-
-* Catering companies
-* Function hall food vendors
-* Juice and beverage suppliers for events
-* Ice-cream vendors serving functions
-* Corporate meal suppliers
-* Event service providers
-* Small logistics or delivery businesses
-* Equipment rental services for events
-
-The core problem is not limited to catering — it exists in **any service business that manages multiple client orders and deliveries manually.**
+- **Row Level Security (RLS):** Every database table is protected. Owners can only ever access their own company's data.
+- **Multi-Tenancy:** Strict company-level data isolation enforced at the database layer.
+- **Secret Management:** All API keys (OneSignal, Supabase) are stored in Supabase Vault Secrets — never bundled in the APK.
+- **Zero-Trust Notifications:** Notification triggers are handled server-side via Edge Functions.
 
 ---
 
-# Future Expansion
+## 🗂️ Project Structure
 
-The platform is designed to expand into a broader **operations platform for service-based businesses.**
-
-Planned future capabilities include:
-
-### AI Order Parsing
-
-Automatically convert WhatsApp messages or voice notes into structured orders.
-
-### Inventory Prediction
-
-Analyze past orders to predict ingredient requirements for upcoming events.
-
-### Client Portal
-
-Allow regular clients to place orders directly through a simple interface.
-
-### Analytics Dashboard
-
-Provide insights into:
-
-* revenue trends
-* busiest days
-* staff performance
-* inventory usage
-
-### Multi-Business Support
-
-Enable the platform to support multiple service industries beyond catering.
-
-### Smart Notification System
-
-Automated reminders for:
-
-* upcoming events
-* pending payments
-* staff confirmations
-
-### Supply Chain Integration
-
-Connect ingredient suppliers and vendors for automated purchasing.
+```
+/
+├── apps/
+│   └── mobile_app/         # Flutter application
+│       ├── lib/
+│       │   ├── core/        # Env, constants
+│       │   ├── features/    # Orders, Bidding, Khata, Profile
+│       │   ├── role_views/  # Owner & Staff specific screens
+│       │   └── services/    # NotificationService, Location
+│       └── android/         # Native Android config
+├── backend/
+│   ├── migrations/          # 33+ SQL migration files
+│   └── functions/
+│       └── send-notification/ # Secure OneSignal Edge Function
+└── supabase/                # Supabase CLI config
+```
 
 ---
 
-# Vision
+## 🚀 Deployment
 
-Catering Ops aims to become the **operational backbone for small service businesses**, enabling them to move from informal systems to structured digital operations without requiring complex enterprise software.
+### Prerequisites
+- Flutter SDK
+- Supabase project
+- OneSignal App
+- Firebase project (for FCM on Android)
+
+### 1. Set Supabase Secrets
+```bash
+supabase secrets set ONESIGNAL_APP_ID="your_app_id"
+supabase secrets set ONESIGNAL_REST_API_KEY="your_rest_key"
+```
+
+### 2. Deploy Edge Function
+```bash
+supabase functions deploy send-notification
+```
+
+### 3. Run Migrations
+Apply all SQL files from `backend/migrations/` in order via the Supabase SQL Editor.
+
+### 4. Build App
+```bash
+flutter build apk --release
+```
 
 ---
 
-If you want, I can also help you add a **visual system flow diagram** (which makes the README look much more professional for GitHub and hackathons).
+## 🌍 Who Is This For?
+
+Any service business that manages **multiple client orders and staff deliveries**:
+
+- Catering companies & function hall vendors
+- Beverage / ice-cream suppliers for events
+- Corporate meal suppliers
+- Equipment rental services
+- Small logistics & delivery businesses
+
+---
+
+## 🔭 Future Roadmap
+
+- **AI Order Parsing** — Convert WhatsApp messages into structured orders automatically.
+- **Inventory Prediction** — AI-powered ingredient forecasting based on past orders.
+- **Client Portal** — Allow clients to place orders directly via a web interface.
+- **Analytics Dashboard** — Revenue, staff performance, and inventory insights.
+- **Multi-Country Support** — Expand beyond India with currency and language localization.
+
+---
+
+## 📄 License
+
+This project is proprietary. All rights reserved.

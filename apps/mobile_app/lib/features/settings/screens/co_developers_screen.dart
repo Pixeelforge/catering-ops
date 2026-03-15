@@ -155,7 +155,7 @@ class _CoDevelopersScreenState extends State<CoDevelopersScreen> with SingleTick
                                   child: _ColDevProfile(
                                     name: 'Santosh',
                                     imagePath: 'assets/images/santosh.png',
-                                    role: 'Junior Dev',
+                                    role: 'UI/UX Developer',
                                     slogan: 'I write code that my future self hates. But I will fix it later.',
                                     githubUrl: 'https://github.com/Yyywhhehhshh',
                                     glowColor: Colors.indigoAccent,

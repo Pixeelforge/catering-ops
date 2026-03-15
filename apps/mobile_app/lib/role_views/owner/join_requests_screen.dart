@@ -74,7 +74,7 @@ class _JoinRequestsScreenState extends State<JoinRequestsScreen> {
     final cached = CacheService.get('join_requests_$_companyId');
     if (cached != null && mounted) {
       setState(() {
-        _requests = List<Map<String, dynamic>>.from(cached);
+        _requests = (cached as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
         _loading = false;
       });
     }

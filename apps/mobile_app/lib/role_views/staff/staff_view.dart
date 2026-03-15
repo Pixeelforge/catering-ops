@@ -1672,13 +1672,19 @@ class _StaffViewState extends State<StaffView> with WidgetsBindingObserver {
           .eq('id', order['id']);
 
       // Scenario 6: Notify Owner of delivery
-      final ownerId = order['owner_id'];
-      if (ownerId != null) {
+      final orderRes = await supabase
+          .from('orders')
+          .select('client_name, companies(owner_id)')
+          .eq('id', order['id'])
+          .maybeSingle();
+
+      if (orderRes != null && orderRes['companies'] != null) {
+        final ownerId = (orderRes['companies'] as Map)['owner_id'];
         await NotificationService.sendNotification(
           playerIds: [ownerId],
           title: 'Order Delivered! ✅',
           message:
-              'Order for ${order['client_name']} has been marked as delivered by $_staffName.',
+              'Order for ${orderRes['client_name']} has been marked as delivered by $_staffName.',
           data: {'type': 'order_delivered', 'order_id': order['id']},
           color: 'FF4CAF50', // Green
           companyId: _companyId,
@@ -1949,10 +1955,10 @@ class _StaffViewState extends State<StaffView> with WidgetsBindingObserver {
     if (mounted) {
       setState(() {
         if (cachedAssigned != null) {
-          _assignedOrders = List<Map<String, dynamic>>.from(cachedAssigned);
+          _assignedOrders = (cachedAssigned as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
         }
         if (cachedOpen != null) {
-          _openOrders = List<Map<String, dynamic>>.from(cachedOpen);
+          _openOrders = (cachedOpen as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
         }
         _loadingAssignedOrders = (cachedAssigned == null && cachedOpen == null);
       });

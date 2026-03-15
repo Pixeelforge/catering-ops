@@ -60,11 +60,11 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
     if (mounted) {
       bool updated = false;
       if (cachedStaff != null) {
-        _staffMembers = List<Map<String, dynamic>>.from(cachedStaff);
+        _staffMembers = (cachedStaff as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
         updated = true;
       }
       if (cachedInvites != null) {
-        _pendingInvitations = List<Map<String, dynamic>>.from(cachedInvites);
+        _pendingInvitations = (cachedInvites as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
         updated = true;
       }
       if (updated) {

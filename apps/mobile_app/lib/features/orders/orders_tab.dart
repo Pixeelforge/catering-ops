@@ -281,7 +281,7 @@ Please ensure timely delivery!
     final cached = CacheService.get('owner_orders_${widget.companyId}');
     if (cached != null && mounted) {
       setState(() {
-        _allOrders = List<Map<String, dynamic>>.from(cached);
+        _allOrders = (cached as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
         _isLoading = false;
       });
     }
@@ -2017,51 +2017,53 @@ Please ensure timely delivery!
                           }
 
                           if (assignmentType == 'specific') {
-                            // Scenario 3: Owner sends order to staff
-                            NotificationService.sendNotification(
-                              playerIds: [selectedStaffId],
-                              title: 'New Order Assigned! 📦',
-                              message:
-                                  'You have been assigned to: $clientName ($eventTime)',
-                              data: {
-                                'type': 'direct_assignment',
-                                'order_id': orderId
-                              },
-                              color: 'FFD4A237', // Gold/Amber
-                            );
-
-                            // 🔹 Schedule Reminders (6h & 2h)
-                            if (eventDateRaw != null) {
-                              try {
-                                final eventDate = DateTime.parse(eventDateRaw);
-                                final now = DateTime.now().toUtc();
-                                final formattedTimeStr = DateFormat('h:mm a').format(eventDate.toLocal());
-
-                                final reminder6h = eventDate.subtract(const Duration(hours: 6));
-                                if (reminder6h.isAfter(now)) {
-                                  NotificationService.sendNotification(
-                                    playerIds: [selectedStaffId],
-                                    title: 'Upcoming Order Reminder! ⏰',
-                                    message: 'Reminder: Order for $clientName is scheduled for $formattedTimeStr.',
-                                    data: {'type': 'order_reminder'},
-                                    color: 'FFFF9800',
-                                    sendAfter: reminder6h,
-                                  );
+                            if (!isStaffPending) {
+                              // Scenario 3: Owner sends order to staff
+                              NotificationService.sendNotification(
+                                playerIds: [selectedStaffId],
+                                title: 'New Order Assigned! 📦',
+                                message:
+                                    'You have been assigned to: $clientName ($eventTime)',
+                                data: {
+                                  'type': 'direct_assignment',
+                                  'order_id': orderId
+                                },
+                                color: 'FFD4A237', // Gold/Amber
+                              );
+  
+                              // 🔹 Schedule Reminders (6h & 2h)
+                              if (eventDateRaw != null) {
+                                try {
+                                  final eventDate = DateTime.parse(eventDateRaw);
+                                  final now = DateTime.now().toUtc();
+                                  final formattedTimeStr = DateFormat('h:mm a').format(eventDate.toLocal());
+  
+                                  final reminder6h = eventDate.subtract(const Duration(hours: 6));
+                                  if (reminder6h.isAfter(now)) {
+                                    NotificationService.sendNotification(
+                                      playerIds: [selectedStaffId],
+                                      title: 'Upcoming Order Reminder! ⏰',
+                                      message: 'Reminder: Order for $clientName is scheduled for $formattedTimeStr.',
+                                      data: {'type': 'order_reminder'},
+                                      color: 'FFFF9800',
+                                      sendAfter: reminder6h,
+                                    );
+                                  }
+  
+                                  final reminder2h = eventDate.subtract(const Duration(hours: 2));
+                                  if (reminder2h.isAfter(now)) {
+                                    NotificationService.sendNotification(
+                                      playerIds: [selectedStaffId],
+                                      title: '🚨 EMERGENCY: Order Starting Soon! 🚨',
+                                      message: 'URGENT: Order for $clientName starts in 2 hours ($formattedTimeStr)!',
+                                      data: {'type': 'order_reminder'},
+                                      color: 'FFF44336',
+                                      sendAfter: reminder2h,
+                                    );
+                                  }
+                                } catch (e) {
+                                  debugPrint('Error scheduling staff reminders: $e');
                                 }
-
-                                final reminder2h = eventDate.subtract(const Duration(hours: 2));
-                                if (reminder2h.isAfter(now)) {
-                                  NotificationService.sendNotification(
-                                    playerIds: [selectedStaffId],
-                                    title: '🚨 EMERGENCY: Order Starting Soon! 🚨',
-                                    message: 'URGENT: Order for $clientName starts in 2 hours ($formattedTimeStr)!',
-                                    data: {'type': 'order_reminder'},
-                                    color: 'FFF44336',
-                                    sendAfter: reminder2h,
-                                  );
-                                }
-                              } catch (e) {
-                                debugPrint('Error scheduling staff reminders: $e');
                               }
                             }
                           } else if (assignmentType == 'direct_claim') {

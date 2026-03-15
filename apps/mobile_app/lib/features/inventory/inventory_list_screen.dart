@@ -59,7 +59,7 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
     final cached = CacheService.get('inventory_${widget.companyId}');
     if (cached != null && mounted) {
       setState(() {
-        _items = List<Map<String, dynamic>>.from(cached);
+        _items = (cached as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
         _loading = false;
       });
     }

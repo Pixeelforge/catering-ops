@@ -523,9 +523,9 @@ Please ensure timely delivery!
         label: Text(label),
         selected: isSelected,
         onSelected: (_) => setState(() => _currentFilter = value),
-        selectedColor: Colors.orangeAccent.withValues(alpha: 0.2),
+        selectedColor: Colors.orangeAccent.withOpacity(0.2),
         checkmarkColor: Colors.orangeAccent,
-        backgroundColor: Colors.white.withValues(alpha: 0.05),
+        backgroundColor: Colors.white.withOpacity(0.05),
         labelStyle: TextStyle(
           color: isSelected ? Colors.orangeAccent : Colors.white70,
           fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
@@ -584,7 +584,7 @@ Please ensure timely delivery!
                 onPressed: () => Navigator.pop(context, false),
                 child: Text(
                   'Cancel',
-                  style: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
+                  style: TextStyle(color: Colors.white.withOpacity(0.5)),
                 ),
               ),
               ElevatedButton(
@@ -607,7 +607,7 @@ Please ensure timely delivery!
         padding: const EdgeInsets.only(right: 20),
         margin: const EdgeInsets.only(bottom: 16),
         decoration: BoxDecoration(
-          color: Colors.redAccent.withValues(alpha: 0.8),
+          color: Colors.redAccent.withOpacity(0.8),
           borderRadius: BorderRadius.circular(20),
         ),
         child: const Icon(Icons.delete, color: Colors.white, size: 32),
@@ -622,16 +622,16 @@ Please ensure timely delivery!
           margin: const EdgeInsets.only(bottom: 16),
           decoration: BoxDecoration(
             color: isDelivered
-                ? Colors.greenAccent.withValues(alpha: 0.07)
-                : Colors.white.withValues(alpha: 0.05),
+                ? Colors.greenAccent.withOpacity(0.07)
+                : Colors.white.withOpacity(0.05),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
               color: isDelivered
-                  ? Colors.greenAccent.withValues(alpha: 0.6)
+                  ? Colors.greenAccent.withOpacity(0.6)
                   : isExpanded
-                  ? Colors.orangeAccent.withValues(alpha: 0.5)
+                  ? Colors.orangeAccent.withOpacity(0.5)
                   : (deliveryStaffId == null && !isDeliveryOpen)
-                  ? Colors.redAccent.withValues(alpha: 0.8)
+                  ? Colors.redAccent.withOpacity(0.8)
                   : Colors.white10,
               width: isDelivered
                   ? 1.5
@@ -642,7 +642,7 @@ Please ensure timely delivery!
             boxShadow: isDelivered
                 ? [
                     BoxShadow(
-                      color: Colors.greenAccent.withValues(alpha: 0.2),
+                      color: Colors.greenAccent.withOpacity(0.2),
                       blurRadius: 18,
                       spreadRadius: 1,
                     ),
@@ -650,7 +650,7 @@ Please ensure timely delivery!
                 : (deliveryStaffId == null && !isDeliveryOpen)
                 ? [
                     BoxShadow(
-                      color: Colors.redAccent.withValues(alpha: 0.35),
+                      color: Colors.redAccent.withOpacity(0.35),
                       blurRadius: 16,
                       spreadRadius: 1,
                     ),
@@ -692,7 +692,7 @@ Please ensure timely delivery!
                                 borderRadius: BorderRadius.circular(6),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.orangeAccent.withValues(alpha: 0.4),
+                                    color: Colors.orangeAccent.withOpacity(0.4),
                                     blurRadius: 10,
                                     spreadRadius: 1,
                                   ),
@@ -948,11 +948,11 @@ Please ensure timely delivery!
                                       horizontal: 12,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: Colors.blueAccent.withValues(alpha: 0.1),
+                                      color: Colors.blueAccent.withOpacity(0.1),
                                       borderRadius: BorderRadius.circular(8),
                                       border: Border.all(
                                         color:
-                                            Colors.blueAccent.withValues(alpha: 0.3),
+                                            Colors.blueAccent.withOpacity(0.3),
                                       ),
                                     ),
                                     child: const Row(
@@ -998,11 +998,11 @@ Please ensure timely delivery!
                                     ),
                                     decoration: BoxDecoration(
                                       color:
-                                          Colors.greenAccent.withValues(alpha: 0.1),
+                                          Colors.greenAccent.withOpacity(0.1),
                                       borderRadius: BorderRadius.circular(8),
                                       border: Border.all(
                                         color: Colors.greenAccent
-                                            .withValues(alpha: 0.3),
+                                            .withOpacity(0.3),
                                       ),
                                     ),
                                     child: Row(
@@ -1060,12 +1060,12 @@ Please ensure timely delivery!
                                           vertical: 8,
                                         ),
                                         decoration: BoxDecoration(
-                                          color: Colors.green.withValues(alpha: 0.15),
+                                          color: Colors.green.withOpacity(0.15),
                                           borderRadius:
                                               BorderRadius.circular(8),
                                           border: Border.all(
                                             color:
-                                                Colors.green.withValues(alpha: 0.5),
+                                                Colors.green.withOpacity(0.5),
                                           ),
                                         ),
                                         child: const Row(
@@ -1260,7 +1260,7 @@ Please ensure timely delivery!
                                   vertical: 6,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.05),
+                                  color: Colors.white.withOpacity(0.05),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Row(
@@ -1316,7 +1316,7 @@ Please ensure timely delivery!
                                     vertical: 4,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: Colors.greenAccent.withValues(alpha: 0.1),
+                                    color: Colors.greenAccent.withOpacity(0.1),
                                     borderRadius: BorderRadius.circular(12),
                                     border: Border.all(
                                       color: Colors.greenAccent.withValues(alpha: 
@@ -1393,7 +1393,7 @@ Please ensure timely delivery!
                                       borderRadius: BorderRadius.circular(12),
                                       boxShadow: [
                                         BoxShadow(
-                                          color: Colors.black.withValues(alpha: 0.1),
+                                          color: Colors.black.withOpacity(0.1),
                                           blurRadius: 4,
                                           spreadRadius: 1,
                                         ),
@@ -1445,7 +1445,7 @@ Please ensure timely delivery!
                                   ),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: isDeliveryOpen
-                                        ? Colors.white.withValues(alpha: 0.05)
+                                        ? Colors.white.withOpacity(0.05)
                                         : const Color(0xFFD4A237),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(12),
@@ -1595,10 +1595,10 @@ Please ensure timely delivery!
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.greenAccent.withValues(alpha: 0.1),
+                          color: Colors.greenAccent.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: Colors.greenAccent.withValues(alpha: 0.3),
+                            color: Colors.greenAccent.withOpacity(0.3),
                           ),
                         ),
                         child: Row(
@@ -1652,13 +1652,13 @@ Please ensure timely delivery!
                               Icon(
                                 Icons.assignment_outlined,
                                 size: 64,
-                                color: Colors.white.withValues(alpha: 0.1),
+                                color: Colors.white.withOpacity(0.1),
                               ),
                               const SizedBox(height: 16),
                               Text(
                                 'No orders found',
                                 style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.5),
+                                  color: Colors.white.withOpacity(0.5),
                                   fontSize: 16,
                                 ),
                               ),

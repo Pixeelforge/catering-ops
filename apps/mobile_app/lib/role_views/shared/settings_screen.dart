@@ -142,7 +142,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.05),
+                    color: Colors.white.withOpacity(0.05),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(color: Colors.white12),
                   ),
@@ -150,7 +150,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     children: [
                       CircleAvatar(
                         radius: 30,
-                        backgroundColor: Colors.orangeAccent.withValues(alpha: 0.2),
+                        backgroundColor: Colors.orangeAccent.withOpacity(0.2),
                         child: Text(
                           (widget.fullName ?? 'U')[0].toUpperCase(),
                           style: const TextStyle(color: Colors.orangeAccent, fontSize: 24, fontWeight: FontWeight.bold),
@@ -167,7 +167,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ),
                             Text(
                               widget.role.toUpperCase(),
-                              style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 12),
+                              style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12),
                             ),
                           ],
                         ),
@@ -245,7 +245,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Center(
                   child: Text(
                     'Catering Ops v1.0.0',
-                    style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 12),
+                    style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 12),
                   ),
                 ),
               ],
@@ -267,16 +267,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.05),
+          color: color.withOpacity(0.05),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withValues(alpha: 0.1)),
+          border: Border.all(color: color.withOpacity(0.1)),
         ),
         child: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
+                color: color.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(icon, color: color, size: 24),
@@ -292,7 +292,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   Text(
                     subtitle,
-                    style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 13),
+                    style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13),
                   ),
                 ],
               ),

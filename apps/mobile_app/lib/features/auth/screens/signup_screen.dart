@@ -232,7 +232,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 Container(
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.05),
+                    color: Colors.white.withOpacity(0.05),
                     borderRadius: BorderRadius.circular(24),
                     border: Border.all(color: Colors.white12),
                   ),
@@ -344,7 +344,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         errorStyle: const TextStyle(color: Colors.redAccent),
         prefixIcon: Icon(icon, color: Colors.white60, size: 20),
         filled: true,
-        fillColor: Colors.white.withValues(alpha: 0.05),
+        fillColor: Colors.white.withOpacity(0.05),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: Colors.white10),
@@ -374,7 +374,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
             borderRadius: BorderRadius.circular(16),
           ),
           elevation: 8,
-          shadowColor: Colors.orangeAccent.withValues(alpha: 0.4),
+          shadowColor: Colors.orangeAccent.withOpacity(0.4),
         ),
         child: _loading
             ? const SizedBox(
@@ -418,8 +418,8 @@ class _RoleCard extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
           color: isSelected
-              ? Colors.orangeAccent.withValues(alpha: 0.2)
-              : Colors.white.withValues(alpha: 0.05),
+              ? Colors.orangeAccent.withOpacity(0.2)
+              : Colors.white.withOpacity(0.05),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isSelected ? Colors.orangeAccent : Colors.white12,

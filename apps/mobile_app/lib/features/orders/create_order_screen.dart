@@ -389,7 +389,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                 icon: const Icon(Icons.contact_phone, size: 18),
                 label: const Text('Import from Contacts'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orangeAccent.withValues(alpha: 0.1),
+                  backgroundColor: Colors.orangeAccent.withOpacity(0.1),
                   foregroundColor: Colors.orangeAccent,
                   elevation: 0,
                   minimumSize: const Size(double.infinity, 45),
@@ -887,7 +887,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                         vertical: 20,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.05),
+                        color: Colors.white.withOpacity(0.05),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(color: Colors.white12),
                       ),
@@ -905,7 +905,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                                 Text(
                                   'Event Date & Time',
                                   style: TextStyle(
-                                    color: Colors.white.withValues(alpha: 0.5),
+                                    color: Colors.white.withOpacity(0.5),
                                     fontSize: 12,
                                   ),
                                 ),
@@ -952,10 +952,10 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                         width: double.infinity,
                         padding: const EdgeInsets.symmetric(vertical: 24),
                         decoration: BoxDecoration(
-                          color: Colors.orangeAccent.withValues(alpha: 0.07),
+                          color: Colors.orangeAccent.withOpacity(0.07),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                            color: Colors.orangeAccent.withValues(alpha: 0.5),
+                            color: Colors.orangeAccent.withOpacity(0.5),
                             width: 1.5,
                           ),
                         ),
@@ -993,10 +993,10 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.04),
+                            color: Colors.white.withOpacity(0.04),
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                              color: Colors.orangeAccent.withValues(alpha: 0.3),
+                              color: Colors.orangeAccent.withOpacity(0.3),
                             ),
                           ),
                           child: Column(
@@ -1005,7 +1005,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                                 margin: const EdgeInsets.only(bottom: 12),
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.05),
+                                  color: Colors.white.withOpacity(0.05),
                                   borderRadius: BorderRadius.circular(12),
                                   border: Border.all(color: Colors.white10),
                                 ),
@@ -1067,7 +1067,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                                                   : 'persons';
                                             });
                                           },
-                                          fillColor: Colors.orangeAccent.withValues(alpha: 0.2),
+                                          fillColor: Colors.orangeAccent.withOpacity(0.2),
                                           selectedColor: Colors.orangeAccent,
                                           color: Colors.white38,
                                           constraints: const BoxConstraints(
@@ -1113,7 +1113,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                                                       vertical: 0,
                                                     ),
                                                 filled: true,
-                                                fillColor: Colors.white.withValues(alpha: 0.05),
+                                                fillColor: Colors.white.withOpacity(0.05),
                                                 border: OutlineInputBorder(
                                                   borderRadius:
                                                       BorderRadius.circular(8),
@@ -1182,7 +1182,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                       const SizedBox(height: 10),
                       Container(
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.05),
+                          color: Colors.white.withOpacity(0.05),
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(color: Colors.white12),
                         ),
@@ -1200,7 +1200,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                                   ),
                                   decoration: BoxDecoration(
                                     color: _orderType == 'direct'
-                                        ? Colors.orangeAccent.withValues(alpha: 0.18)
+                                        ? Colors.orangeAccent.withOpacity(0.18)
                                         : Colors.transparent,
                                     borderRadius: const BorderRadius.horizontal(
                                       left: Radius.circular(13),
@@ -1255,7 +1255,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                                     color: _orderType == 'middleman'
                                         ? const Color(
                                             0xFFD4A237,
-                                          ).withValues(alpha: 0.15)
+                                          ).withOpacity(0.15)
                                         : Colors.transparent,
                                     borderRadius: const BorderRadius.horizontal(
                                       right: Radius.circular(13),
@@ -1309,10 +1309,10 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                         ? Container(
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
-                              color: Colors.orange.withValues(alpha: 0.08),
+                              color: Colors.orange.withOpacity(0.08),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color: Colors.orange.withValues(alpha: 0.3),
+                                color: Colors.orange.withOpacity(0.3),
                               ),
                             ),
                             child: Column(
@@ -1423,7 +1423,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: const Color(
                                       0xFFD4A237,
-                                    ).withValues(alpha: 0.1),
+                                    ).withOpacity(0.1),
                                     foregroundColor: const Color(0xFFD4A237),
                                     elevation: 0,
                                     side: const BorderSide(
@@ -1448,7 +1448,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                             vertical: 8,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.amber.withValues(alpha: 0.08),
+                            color: Colors.amber.withOpacity(0.08),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Row(
@@ -1479,10 +1479,10 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                           vertical: 8,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.green.withValues(alpha: 0.08),
+                          color: Colors.green.withOpacity(0.08),
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
-                            color: Colors.greenAccent.withValues(alpha: 0.3),
+                            color: Colors.greenAccent.withOpacity(0.3),
                           ),
                         ),
                         child: const Row(
@@ -1555,7 +1555,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                       const SizedBox(height: 10),
                       Container(
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.05),
+                          color: Colors.white.withOpacity(0.05),
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(color: Colors.white12),
                         ),
@@ -1573,7 +1573,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                                   ),
                                   decoration: BoxDecoration(
                                     color: _paymentStatus == 'paid'
-                                        ? Colors.greenAccent.withValues(alpha: 0.2)
+                                        ? Colors.greenAccent.withOpacity(0.2)
                                         : Colors.transparent,
                                     borderRadius: const BorderRadius.horizontal(
                                       left: Radius.circular(13),
@@ -1623,7 +1623,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                                   ),
                                   decoration: BoxDecoration(
                                     color: _paymentStatus == 'pending'
-                                        ? Colors.orangeAccent.withValues(alpha: 0.15)
+                                        ? Colors.orangeAccent.withOpacity(0.15)
                                         : Colors.transparent,
                                     borderRadius: const BorderRadius.horizontal(
                                       right: Radius.circular(13),

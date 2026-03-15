@@ -491,7 +491,7 @@ class _StaffViewState extends State<StaffView> with WidgetsBindingObserver {
         backgroundColor: const Color(0xFF161626),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+          side: BorderSide(color: Colors.white.withOpacity(0.1)),
         ),
         title: const Text(
           'Notice',
@@ -627,7 +627,7 @@ class _StaffViewState extends State<StaffView> with WidgetsBindingObserver {
                       'Your request to join "$companyName" is waiting for approval.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.6),
+                        color: Colors.white.withOpacity(0.6),
                         fontSize: 16,
                       ),
                     ),
@@ -684,7 +684,7 @@ class _StaffViewState extends State<StaffView> with WidgetsBindingObserver {
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: Colors.orangeAccent.withValues(alpha: 0.1),
+                    color: Colors.orangeAccent.withOpacity(0.1),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
@@ -707,7 +707,7 @@ class _StaffViewState extends State<StaffView> with WidgetsBindingObserver {
                   'Enter the Company ID provided by your owner to access the dashboard.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.5),
+                    color: Colors.white.withOpacity(0.5),
                     fontSize: 14,
                   ),
                 ),
@@ -722,7 +722,7 @@ class _StaffViewState extends State<StaffView> with WidgetsBindingObserver {
                     labelText: 'Company ID',
                     labelStyle: const TextStyle(color: Colors.white54),
                     filled: true,
-                    fillColor: Colors.white.withValues(alpha: 0.05),
+                    fillColor: Colors.white.withOpacity(0.05),
                     prefixIcon: const Icon(
                       Icons.vpn_key_outlined,
                       color: Colors.orangeAccent,
@@ -814,7 +814,7 @@ class _StaffViewState extends State<StaffView> with WidgetsBindingObserver {
             Text(
               'Hello,',
               style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.6),
+                color: Colors.white.withOpacity(0.6),
                 fontSize: 16,
               ),
             ),
@@ -830,9 +830,9 @@ class _StaffViewState extends State<StaffView> with WidgetsBindingObserver {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Colors.greenAccent.withValues(alpha: 0.05),
+                color: Colors.greenAccent.withOpacity(0.05),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.2)),
+                border: Border.all(color: Colors.greenAccent.withOpacity(0.2)),
               ),
               child: Row(
                 children: [
@@ -858,7 +858,7 @@ class _StaffViewState extends State<StaffView> with WidgetsBindingObserver {
                           _companyName ??
                               'ID: ••••••••${_companyId!.substring(_companyId!.length - 4)}',
                           style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.5),
+                            color: Colors.white.withOpacity(0.5),
                             fontSize: 12,
                             fontFamily: 'monospace',
                           ),
@@ -891,19 +891,19 @@ class _StaffViewState extends State<StaffView> with WidgetsBindingObserver {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      Colors.blueAccent.withValues(alpha: 0.15),
-                      Colors.blueAccent.withValues(alpha: 0.05),
+                      Colors.blueAccent.withOpacity(0.15),
+                      Colors.blueAccent.withOpacity(0.05),
                     ],
                   ),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.2)),
+                  border: Border.all(color: Colors.blueAccent.withOpacity(0.2)),
                 ),
                 child: Row(
                   children: [
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.blueAccent.withValues(alpha: 0.1),
+                        color: Colors.blueAccent.withOpacity(0.1),
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(
@@ -984,9 +984,9 @@ class _StaffViewState extends State<StaffView> with WidgetsBindingObserver {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: Colors.purpleAccent.withValues(alpha: 0.1),
+                color: Colors.purpleAccent.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.purpleAccent.withValues(alpha: 0.3)),
+                border: Border.all(color: Colors.purpleAccent.withOpacity(0.3)),
               ),
               child: Text(
                 '${visibleOpenOrders.length} OPEN',
@@ -1034,9 +1034,9 @@ class _StaffViewState extends State<StaffView> with WidgetsBindingObserver {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.purpleAccent.withValues(alpha: 0.05),
+        color: Colors.purpleAccent.withOpacity(0.05),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.purpleAccent.withValues(alpha: 0.3)),
+        border: Border.all(color: Colors.purpleAccent.withOpacity(0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1065,7 +1065,7 @@ class _StaffViewState extends State<StaffView> with WidgetsBindingObserver {
                 child: Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.05),
+                    color: Colors.white.withOpacity(0.05),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
@@ -1100,13 +1100,13 @@ class _StaffViewState extends State<StaffView> with WidgetsBindingObserver {
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blueAccent.withValues(alpha: 0.2),
+                  backgroundColor: Colors.blueAccent.withOpacity(0.2),
                   foregroundColor: Colors.blueAccent,
                   elevation: 0,
                   padding: const EdgeInsets.symmetric(vertical: 10),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
-                    side: BorderSide(color: Colors.blueAccent.withValues(alpha: 0.5)),
+                    side: BorderSide(color: Colors.blueAccent.withOpacity(0.5)),
                   ),
                 ),
               ),
@@ -1116,7 +1116,7 @@ class _StaffViewState extends State<StaffView> with WidgetsBindingObserver {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.2),
+              color: Colors.black.withOpacity(0.2),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Column(
@@ -1231,11 +1231,11 @@ class _StaffViewState extends State<StaffView> with WidgetsBindingObserver {
                         decoration: InputDecoration(
                           hintText: 'Your Bid (₹)',
                           hintStyle: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.2),
+                            color: Colors.white.withOpacity(0.2),
                             fontSize: 12,
                           ),
                           filled: true,
-                          fillColor: Colors.white.withValues(alpha: 0.05),
+                          fillColor: Colors.white.withOpacity(0.05),
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 12,
                             vertical: 8,
@@ -1283,10 +1283,10 @@ class _StaffViewState extends State<StaffView> with WidgetsBindingObserver {
                       vertical: 8,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.green.withValues(alpha: 0.1),
+                      color: Colors.green.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: Colors.greenAccent.withValues(alpha: 0.3),
+                        color: Colors.greenAccent.withOpacity(0.3),
                       ),
                     ),
                     child: Row(
@@ -1322,11 +1322,11 @@ class _StaffViewState extends State<StaffView> with WidgetsBindingObserver {
                           decoration: InputDecoration(
                             hintText: 'Update bid (₹)',
                             hintStyle: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.2),
+                              color: Colors.white.withOpacity(0.2),
                               fontSize: 12,
                             ),
                             filled: true,
-                            fillColor: Colors.white.withValues(alpha: 0.05),
+                            fillColor: Colors.white.withOpacity(0.05),
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 12,
                               vertical: 8,
@@ -1551,10 +1551,10 @@ class _StaffViewState extends State<StaffView> with WidgetsBindingObserver {
             width: double.infinity,
             padding: const EdgeInsets.all(40),
             decoration: BoxDecoration(
-              color: Colors.orangeAccent.withValues(alpha: 0.02),
+              color: Colors.orangeAccent.withOpacity(0.02),
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
-                color: Colors.orangeAccent.withValues(alpha: 0.1),
+                color: Colors.orangeAccent.withOpacity(0.1),
                 width: 1,
               ),
             ),
@@ -1570,7 +1570,7 @@ class _StaffViewState extends State<StaffView> with WidgetsBindingObserver {
                   Text(
                     'No deliveries assigned to you right now.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+                    style: TextStyle(color: Colors.white.withOpacity(0.3)),
                   ),
                 ],
               ),
@@ -1602,7 +1602,7 @@ class _StaffViewState extends State<StaffView> with WidgetsBindingObserver {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.03),
+        color: Colors.white.withOpacity(0.03),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white10),
       ),
@@ -1638,8 +1638,8 @@ class _StaffViewState extends State<StaffView> with WidgetsBindingObserver {
                 ),
                 decoration: BoxDecoration(
                   color: (order['order_status'] == 'completed')
-                      ? Colors.greenAccent.withValues(alpha: 0.1)
-                      : Colors.orangeAccent.withValues(alpha: 0.1),
+                      ? Colors.greenAccent.withOpacity(0.1)
+                      : Colors.orangeAccent.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
@@ -1680,14 +1680,14 @@ class _StaffViewState extends State<StaffView> with WidgetsBindingObserver {
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blueAccent.withValues(alpha: 0.2),
+                    backgroundColor: Colors.blueAccent.withOpacity(0.2),
                     foregroundColor: Colors.blueAccent,
                     elevation: 0,
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                       side: BorderSide(
-                          color: Colors.blueAccent.withValues(alpha: 0.5)),
+                          color: Colors.blueAccent.withOpacity(0.5)),
                     ),
                   ),
                 ),
@@ -1707,14 +1707,14 @@ class _StaffViewState extends State<StaffView> with WidgetsBindingObserver {
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.greenAccent.withValues(alpha: 0.2),
+                    backgroundColor: Colors.greenAccent.withOpacity(0.2),
                     foregroundColor: Colors.greenAccent,
                     elevation: 0,
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                       side: BorderSide(
-                          color: Colors.greenAccent.withValues(alpha: 0.5)),
+                          color: Colors.greenAccent.withOpacity(0.5)),
                     ),
                   ),
                 ),

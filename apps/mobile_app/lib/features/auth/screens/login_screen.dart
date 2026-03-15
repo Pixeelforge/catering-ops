@@ -127,7 +127,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.05),
+                    color: Colors.white.withOpacity(0.05),
                     shape: BoxShape.circle,
                     border: Border.all(color: Colors.white12),
                   ),
@@ -157,7 +157,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 Container(
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.05),
+                    color: Colors.white.withOpacity(0.05),
                     borderRadius: BorderRadius.circular(24),
                     border: Border.all(color: Colors.white12),
                   ),
@@ -245,7 +245,7 @@ class _LoginScreenState extends State<LoginScreen> {
         labelStyle: const TextStyle(color: Colors.white60),
         prefixIcon: Icon(icon, color: Colors.white60),
         filled: true,
-        fillColor: Colors.white.withValues(alpha: 0.05),
+        fillColor: Colors.white.withOpacity(0.05),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: Colors.white10),
@@ -275,7 +275,7 @@ class _LoginScreenState extends State<LoginScreen> {
             borderRadius: BorderRadius.circular(16),
           ),
           elevation: 8,
-          shadowColor: Colors.orangeAccent.withValues(alpha: 0.4),
+          shadowColor: Colors.orangeAccent.withOpacity(0.4),
         ),
         child: _loading
             ? const SizedBox(

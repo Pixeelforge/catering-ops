@@ -33,10 +33,12 @@ serve(async (req) => {
       ios_sound: "default",
     }
 
-    if (playerIds) {
+    if (playerIds && playerIds.length > 0) {
       body.include_external_user_ids = playerIds
+      console.log(`🔔 Targeting specific users: ${playerIds}`)
     } else if (filters) {
       body.filters = filters
+      console.log(`🔔 Targeting via custom filters`)
     } else if (companyId) {
       // 🔹 IMPORTANT: Default filters are OR. We MUST specify AND operator.
       body.filters = [
@@ -44,11 +46,15 @@ serve(async (req) => {
         { operator: "AND" },
         { field: "tag", key: "role", relation: "=", value: "staff" },
       ]
+      console.log(`🔔 Targeting all staff in company: ${companyId}`)
     }
 
     if (sendAfter) {
       body.send_after = sendAfter
+      console.log(`⏰ Scheduled for: ${sendAfter}`)
     }
+
+    console.log("📤 Sending to OneSignal:", JSON.stringify(body))
 
     const response = await fetch("https://onesignal.com/api/v1/notifications", {
       method: "POST",
@@ -60,6 +66,7 @@ serve(async (req) => {
     })
 
     const result = await response.json()
+    console.log("📥 OneSignal Response:", JSON.stringify(result))
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: response.status,

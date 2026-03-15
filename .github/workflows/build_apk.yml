@@ -3,6 +3,7 @@ name: Build APK
 on:
   push:
     branches:
+      - main
       - sivaji
       - pranay
   workflow_dispatch:
@@ -14,9 +15,6 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
       
-      - name: List Files (Debug)
-        run: ls -R
-          
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
@@ -30,13 +28,26 @@ jobs:
 
       - name: Create .env file
         shell: bash
+        env:
+          ENV_DATA: ${{ secrets.ENV_FILE }}
         run: |
           mkdir -p apps/mobile_app/assets
-          if [ -n "${{ secrets.ENV_FILE }}" ]; then
-            echo "${{ secrets.ENV_FILE }}" > apps/mobile_app/assets/.env
+          if [ -n "$ENV_DATA" ]; then
+            echo "$ENV_DATA" > apps/mobile_app/assets/.env
+            echo "✅ Created .env from secrets"
           else
-            echo "Using placeholder .env file"
+            echo "⚠️ Secret ENV_FILE not found, using example"
             cp apps/mobile_app/assets/.env.example apps/mobile_app/assets/.env
+          fi
+          
+      - name: Verify .env exists
+        run: |
+          if [ -f "apps/mobile_app/assets/.env" ]; then
+            echo "✅ assets/.env is ready"
+            ls -l apps/mobile_app/assets/.env
+          else
+            echo "❌ ERROR: assets/.env is missing!"
+            exit 1
           fi
           
       - name: Install dependencies

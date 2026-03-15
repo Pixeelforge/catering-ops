@@ -549,6 +549,7 @@ Please ensure timely delivery!
     final bool isCompleted = order['order_status'] == 'completed';
     final String? middlemanTag = order['middleman_tag'];
     final String? deliveryStaffId = order['delivery_staff_id'];
+    final String? pendingStaffId = order['pending_delivery_staff_id'];
     final bool isDeliveryOpen = order['is_delivery_open'] == true;
     final String? deliverySignature = order['delivery_signature'];
     final bool isDelivered =
@@ -847,7 +848,7 @@ Please ensure timely delivery!
                       ),
 
                     // Delivery Assignment Status
-                    if (isDeliveryOpen || deliveryStaffId != null)
+                    if (isDeliveryOpen || deliveryStaffId != null || pendingStaffId != null)
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                         child: Column(
@@ -886,20 +887,27 @@ Please ensure timely delivery!
                                 else
                                   Flexible(
                                     child: FutureBuilder(
-                                      future: _supabase
-                                          .from('profiles')
-                                          .select('full_name, phone')
-                                          .eq('id', deliveryStaffId!)
-                                          .maybeSingle(),
+                                      future: deliveryStaffId != null
+                                          ? _supabase
+                                              .from('profiles')
+                                              .select('full_name, phone')
+                                              .eq('id', deliveryStaffId)
+                                              .maybeSingle()
+                                          : _supabase
+                                              .from('company_invitations')
+                                              .select('full_name, phone')
+                                              .eq('id', pendingStaffId!)
+                                              .maybeSingle(),
                                       builder: (context, snapshot) {
                                         final name =
                                             snapshot.data?['full_name'] ??
                                             'Loading...';
+                                        final isPending = deliveryStaffId == null;
                                         
                                         return Text(
-                                          name,
-                                          style: const TextStyle(
-                                            color: Colors.lightBlue,
+                                          isPending ? '$name (Pending)' : name,
+                                          style: TextStyle(
+                                            color: isPending ? Colors.orangeAccent : Colors.lightBlue,
                                             fontSize: 14,
                                             fontWeight: FontWeight.bold,
                                           ),
@@ -1033,13 +1041,19 @@ Please ensure timely delivery!
                             // WhatsApp Sharing
                             if (!isDelivered &&
                                 !isDeliveryOpen &&
-                                deliveryStaffId != null)
+                                (deliveryStaffId != null || pendingStaffId != null))
                               FutureBuilder(
-                                future: _supabase
-                                    .from('profiles')
-                                    .select('phone')
-                                    .eq('id', deliveryStaffId)
-                                    .maybeSingle(),
+                                future: deliveryStaffId != null
+                                    ? _supabase
+                                        .from('profiles')
+                                        .select('phone')
+                                        .eq('id', deliveryStaffId)
+                                        .maybeSingle()
+                                    : _supabase
+                                        .from('company_invitations')
+                                        .select('phone')
+                                        .eq('id', pendingStaffId!)
+                                        .maybeSingle(),
                                 builder: (context, snapshot) {
                                   final phone = snapshot.data?['phone'];
                                   if (phone == null)
@@ -1688,6 +1702,7 @@ Please ensure timely delivery!
     final fareController = TextEditingController();
     int selectedDuration = 15;
     String selectedStaffId = '';
+    bool isStaffPending = false;
     String assignmentType = 'none'; // 'specific', 'open', 'none'
 
     await showDialog(
@@ -1800,37 +1815,56 @@ Please ensure timely delivery!
                       ),
                       const SizedBox(height: 8),
                       FutureBuilder(
-                        future: _supabase
-                            .from('profiles')
-                            .select('id, full_name')
-                            .eq('company_id', widget.companyId)
-                            .eq('role', 'staff'),
+                        future: Future.wait([
+                          _supabase
+                              .from('profiles')
+                              .select('id, full_name')
+                              .eq('company_id', widget.companyId)
+                              .eq('role', 'staff'),
+                          _supabase
+                              .from('company_invitations')
+                              .select('id, full_name')
+                              .eq('company_id', widget.companyId),
+                        ]),
                         builder: (context, snapshot) {
                           if (!snapshot.hasData)
                             return const CircularProgressIndicator();
-                          final staffList = List<Map<String, dynamic>>.from(
-                            snapshot.data ?? [],
-                          );
+                          
+                          final List<dynamic> results = snapshot.data as List<dynamic>;
+                          final staffList = List<Map<String, dynamic>>.from(results[0]);
+                          final pendingList = List<Map<String, dynamic>>.from(results[1]);
+
                           return DropdownButtonFormField<String>(
                             dropdownColor: const Color(0xFF1A1A2E),
                             value: selectedStaffId.isEmpty
                                 ? null
                                 : selectedStaffId,
-                            items: staffList
-                                .map(
-                                  (s) => DropdownMenuItem(
-                                    value: s['id'] as String,
-                                    child: Text(
-                                      s['full_name'],
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                      ),
-                                    ),
+                            items: [
+                              ...staffList.map(
+                                (s) => DropdownMenuItem(
+                                  value: s['id'] as String,
+                                  child: Text(
+                                    s['full_name'],
+                                    style: const TextStyle(color: Colors.white),
                                   ),
-                                )
-                                .toList(),
-                            onChanged: (val) =>
-                                setDialogState(() => selectedStaffId = val!),
+                                ),
+                              ),
+                              ...pendingList.map(
+                                (s) => DropdownMenuItem(
+                                  value: 'pending_${s['id']}',
+                                  child: Text(
+                                    '${s['full_name']} (Pending)',
+                                    style: const TextStyle(color: Colors.orangeAccent),
+                                  ),
+                                ),
+                              ),
+                            ],
+                            onChanged: (val) {
+                              setDialogState(() {
+                                selectedStaffId = val!;
+                                isStaffPending = val.startsWith('pending_');
+                              });
+                            },
                             decoration: InputDecoration(
                               filled: true,
                               fillColor: Colors.white.withOpacity(0.05),
@@ -1942,10 +1976,16 @@ Please ensure timely delivery!
                         : null;
 
                     try {
+                      final String? finalStaffId = assignmentType == 'specific' && !isStaffPending
+                          ? selectedStaffId
+                          : null;
+                      final String? finalPendingId = assignmentType == 'specific' && isStaffPending
+                          ? selectedStaffId.replaceFirst('pending_', '')
+                          : null;
+
                       final updates = {
-                        'delivery_staff_id': assignmentType == 'specific'
-                            ? selectedStaffId
-                            : null,
+                        'delivery_staff_id': finalStaffId,
+                        'pending_delivery_staff_id': finalPendingId,
                         'is_delivery_open': assignmentType == 'open' ||
                             assignmentType == 'direct_claim',
                         'delivery_fare': assignmentType == 'none' ? null : fare,
@@ -2053,6 +2093,22 @@ Please ensure timely delivery!
 
                       _toast('Delivery settings updated');
                       if (mounted) Navigator.pop(context);
+
+                      // 🔹 Automatically trigger WhatsApp sharing for pending staff
+                      if (assignmentType == 'specific' && isStaffPending) {
+                        final String cleanPendingId = selectedStaffId.replaceFirst('pending_', '');
+                        final inviteRes = await _supabase
+                            .from('company_invitations')
+                            .select('phone')
+                            .eq('id', cleanPendingId)
+                            .maybeSingle();
+                        
+                        if (inviteRes != null && inviteRes['phone'] != null) {
+                          // Fetch the full order map from _allOrders to pass to shareToWhatsApp
+                          final orderMap = _allOrders.firstWhere((o) => o['id'] == orderId);
+                          _shareToWhatsApp(orderMap, inviteRes['phone'].toString());
+                        }
+                      }
                     } catch (e) {
                       _toast('Error: $e');
                     }

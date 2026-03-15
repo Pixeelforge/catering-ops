@@ -86,22 +86,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
           .update({'company_id': null})
           .eq('id', user.id);
 
-      // 3. Send Notifications
+      // 3. Send Notification (Unified method handles DB logging and Push)
       if (ownerId != null) {
-        await supabase.from('notifications').insert({
-          'owner_id': ownerId,
-          'company_id': widget.companyId,
-          'title': 'Staff Left 👤',
-          'message': '${widget.fullName ?? 'A staff member'} has left the company.',
-          'type': 'staff_left',
-        });
-
         await NotificationService.sendNotification(
           playerIds: [ownerId],
           title: 'Staff Member Left 👤',
           message: '${widget.fullName ?? 'A staff member'} has left your team.',
           data: {'type': 'staff_left'},
           color: 'FFFF5722',
+          companyId: widget.companyId,
         );
       }
 

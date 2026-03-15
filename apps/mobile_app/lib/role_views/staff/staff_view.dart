@@ -1681,6 +1681,7 @@ class _StaffViewState extends State<StaffView> with WidgetsBindingObserver {
               'Order for ${order['client_name']} has been marked as delivered by $_staffName.',
           data: {'type': 'order_delivered', 'order_id': order['id']},
           color: 'FF4CAF50', // Green
+          companyId: _companyId,
         );
       }
 

@@ -145,19 +145,28 @@ class _SignUpScreenState extends State<SignUpScreen> {
             .maybeSingle();
             
         if (invite != null) {
-          // Auto-join the company
+          // 1. Auto-join the company
           await supabase
               .from('profiles')
               .update({'company_id': invite['company_id']})
               .eq('id', res.user!.id);
               
-          // Remove the invitation now that it's processed
+          // 2. Auto-link any orders assigned to this invitation
+          await supabase
+              .from('orders')
+              .update({
+                'delivery_staff_id': res.user!.id,
+                'pending_delivery_staff_id': null,
+              })
+              .eq('pending_delivery_staff_id', invite['id']);
+              
+          // 3. Remove the invitation now that it's processed
           await supabase
               .from('company_invitations')
               .delete()
               .eq('id', invite['id']);
               
-          _toast('Account created! You were automatically added to your company.');
+          _toast('Account created! You were automatically added to your team.');
           if (mounted) Navigator.pop(context);
           return; // Skip the generic welcome toast
         }

@@ -130,6 +130,8 @@ class NotificationService {
     Map<String, dynamic>? data,
     String color = 'FFD4A237',
     DateTime? sendAfter,
+    bool saveToDb = true,
+    String? companyId,
   }) async {
     debugPrint('🔔 OneSignal: Requesting notification trigger for $playerIds');
     
@@ -143,8 +145,30 @@ class NotificationService {
     };
 
     final err = await _invokeNotifyFunction(payload);
+    
     if (err == null) {
       _showTriggerToast(title);
+      
+      // 🔹 Persistent History: Save to Notifications table (only for immediate notifications)
+      if (saveToDb && sendAfter == null) {
+        try {
+          final client = Supabase.instance.client;
+          final List<Map<String, dynamic>> inserts = playerIds.map((id) => {
+            'owner_id': id,
+            'title': title,
+            'message': message,
+            'company_id': companyId,
+            'is_read': false,
+            'created_at': DateTime.now().toUtc().toIso8601String(),
+          }).toList();
+          
+          if (inserts.isNotEmpty) {
+            await client.from('notifications').insert(inserts);
+          }
+        } catch (e) {
+          debugPrint('🔔 Notification History Error: $e');
+        }
+      }
     }
     return err;
   }
@@ -198,6 +222,7 @@ class NotificationService {
     Map<String, dynamic>? data,
     String color = 'FFD4A237',
     DateTime? sendAfter,
+    bool saveToDb = true,
   }) async {
     debugPrint('🔔 OneSignal: Requesting company notification ($companyId)');
     
@@ -211,8 +236,37 @@ class NotificationService {
     };
 
     final err = await _invokeNotifyFunction(payload);
+    
     if (err == null) {
       _showTriggerToast(title);
+      
+      // 🔹 Persistent History: Save for all staff members in the company
+      if (saveToDb) {
+        try {
+          final client = Supabase.instance.client;
+          // 1. Find all staff members in this company
+          final List<dynamic> staff = await client
+              .from('profiles')
+              .select('id')
+              .eq('company_id', companyId)
+              .eq('role', 'staff');
+          
+          if (staff.isNotEmpty) {
+            final List<Map<String, dynamic>> inserts = staff.map((s) => {
+              'owner_id': s['id'],
+              'title': title,
+              'message': message,
+              'company_id': companyId,
+              'is_read': false,
+              'created_at': DateTime.now().toUtc().toIso8601String(),
+            }).toList();
+            
+            await client.from('notifications').insert(inserts);
+          }
+        } catch (e) {
+          debugPrint('🔔 Notification History Error (Company): $e');
+        }
+      }
     }
     return err;
   }

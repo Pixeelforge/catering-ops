@@ -10,6 +10,7 @@ import 'package:onesignal_flutter/onesignal_flutter.dart';
 import '../../features/inventory/inventory_list_screen.dart';
 import '../shared/settings_screen.dart';
 import '../../features/orders/signature_pad_dialog.dart';
+import '../../services/cache_service.dart';
 
 class StaffView extends StatefulWidget {
   const StaffView({super.key});
@@ -220,6 +221,20 @@ class _StaffViewState extends State<StaffView> {
     final user = supabase.auth.currentUser;
     if (user == null) return;
 
+    // 1. Try Loading from Cache
+    final cached = CacheService.get('profile_${user.id}');
+    if (cached != null && mounted) {
+      setState(() {
+        _staffName = cached['full_name'];
+        _companyId = cached['company_id'];
+        _loading = false;
+      });
+      if (_companyId != null) {
+        _fetchCompanyName();
+        _fetchAssignedOrders();
+      }
+    }
+
     try {
       final res = await supabase
           .from('profiles')
@@ -233,6 +248,11 @@ class _StaffViewState extends State<StaffView> {
           _companyId = res?['company_id'];
           _loading = false;
         });
+
+        // 2. Save to Cache
+        if (res != null) {
+          CacheService.save('profile_${user.id}', res);
+        }
 
         if (_companyId != null) {
           _fetchCompanyName();
@@ -1746,10 +1766,23 @@ class _StaffViewState extends State<StaffView> {
 
   Future<void> _fetchAssignedOrders() async {
     final user = supabase.auth.currentUser;
-    // Only the open-orders query needs _companyId; assigned orders just need user
     if (user == null) return;
 
-    if (mounted) setState(() => _loadingAssignedOrders = true);
+    // 1. Try Loading from Cache
+    final cachedAssigned = CacheService.get('assigned_orders_${user.id}');
+    final cachedOpen = _companyId != null ? CacheService.get('open_orders_${_companyId}') : null;
+    
+    if (mounted) {
+      setState(() {
+        if (cachedAssigned != null) {
+          _assignedOrders = List<Map<String, dynamic>>.from(cachedAssigned);
+        }
+        if (cachedOpen != null) {
+          _openOrders = List<Map<String, dynamic>>.from(cachedOpen);
+        }
+        _loadingAssignedOrders = (cachedAssigned == null && cachedOpen == null);
+      });
+    }
 
     try {
       // Always fetch orders assigned to this staff member (upcoming and completed)
@@ -1794,6 +1827,12 @@ class _StaffViewState extends State<StaffView> {
           _openOrders = List<Map<String, dynamic>>.from(resOpen);
           _loadingAssignedOrders = false;
         });
+
+        // 2. Save to Cache
+        CacheService.save('assigned_orders_${user.id}', assignedList);
+        if (_companyId != null) {
+          CacheService.save('open_orders_${_companyId}', resOpen);
+        }
       }
     } catch (e) {
       debugPrint('Error fetching assigned/open orders: $e');

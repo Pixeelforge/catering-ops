@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:geolocator/geolocator.dart';
 import 'create_order_screen.dart';
 import 'bids_screen.dart';
+import '../../services/cache_service.dart';
 
 class OrdersTab extends StatefulWidget {
   final String companyId;
@@ -276,6 +277,15 @@ Please ensure timely delivery!
   }
 
   Future<void> _fetchOrders() async {
+    // 1. Try loading from Cache
+    final cached = CacheService.get('owner_orders_${widget.companyId}');
+    if (cached != null && mounted) {
+      setState(() {
+        _allOrders = List<Map<String, dynamic>>.from(cached);
+        _isLoading = false;
+      });
+    }
+
     try {
       final data = await _supabase
           .from('orders')
@@ -288,6 +298,9 @@ Please ensure timely delivery!
           _allOrders = List<Map<String, dynamic>>.from(data);
           _isLoading = false;
         });
+
+        // 2. Save to Cache
+        CacheService.save('owner_orders_${widget.companyId}', data);
       }
     } catch (e) {
       debugPrint('Error fetching orders: $e');

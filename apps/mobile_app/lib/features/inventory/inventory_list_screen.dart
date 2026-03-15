@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'add_inventory_item_screen.dart';
+import '../../services/cache_service.dart';
 
 class InventoryListScreen extends StatefulWidget {
   final String companyId;
@@ -54,6 +55,15 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
   }
 
   Future<void> _fetchInventory() async {
+    // 1. Try loading from Cache
+    final cached = CacheService.get('inventory_${widget.companyId}');
+    if (cached != null && mounted) {
+      setState(() {
+        _items = List<Map<String, dynamic>>.from(cached);
+        _loading = false;
+      });
+    }
+
     try {
       final data = await supabase
           .from('inventory_items')
@@ -67,6 +77,9 @@ class _InventoryListScreenState extends State<InventoryListScreen> {
           _items = List<Map<String, dynamic>>.from(data);
           _loading = false;
         });
+
+        // 2. Save to Cache
+        CacheService.save('inventory_${widget.companyId}', data);
       }
     } catch (e) {
       debugPrint('Error fetching inventory: $e');

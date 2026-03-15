@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../services/notification_service.dart';
+import '../../services/cache_service.dart';
 
 class StaffManagementScreen extends StatefulWidget {
   final String companyId;
@@ -52,6 +53,25 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
   }
 
   Future<void> _fetchStaff() async {
+    // 1. Try loading from Cache
+    final cachedStaff = CacheService.get('company_staff_${widget.companyId}');
+    final cachedInvites = CacheService.get('pending_invitations_${widget.companyId}');
+
+    if (mounted) {
+      bool updated = false;
+      if (cachedStaff != null) {
+        _staffMembers = List<Map<String, dynamic>>.from(cachedStaff);
+        updated = true;
+      }
+      if (cachedInvites != null) {
+        _pendingInvitations = List<Map<String, dynamic>>.from(cachedInvites);
+        updated = true;
+      }
+      if (updated) {
+        setState(() => _loading = false);
+      }
+    }
+
     try {
       debugPrint('Fetching staff for company: ${widget.companyId}');
       final data = await supabase
@@ -82,6 +102,11 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
 
           _loading = false;
         });
+
+        // 2. Save to Cache
+        CacheService.save('company_staff_${widget.companyId}', _staffMembers);
+        CacheService.save('pending_invitations_${widget.companyId}', _pendingInvitations);
+
         debugPrint('Fetched ${_staffMembers.length} staff members and ${_pendingInvitations.length} pending invitations');
       }
     } catch (e) {

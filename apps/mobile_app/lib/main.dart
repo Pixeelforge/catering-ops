@@ -7,6 +7,7 @@ import 'features/dashboard/dashboard_screen.dart';
 import 'role_views/owner/join_requests_screen.dart';
 import 'core/env.dart';
 import 'services/notification_service.dart';
+import 'services/cache_service.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -17,6 +18,9 @@ void main() async {
 
     // Initialize Push Notifications early
     await NotificationService.setupOneSignal();
+    
+    // Initialize Local Cache for Offline-First behavior
+    await CacheService.init();
 
     await Supabase.initialize(
       url: Env.supabaseUrl,

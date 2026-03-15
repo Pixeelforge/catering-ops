@@ -95,12 +95,13 @@ class NotificationService {
         'contents': {'en': message},
         'data': data,
         'android_accent_color': color,
+        'small_icon': 'ic_launcher', // Use the new app logo
+        'large_icon': 'ic_launcher',
       };
 
       if (sendAfter != null) {
-        // OneSignal expects "YYYY-MM-DD HH:MM:SS OFFSET" or ISO-8601
-        // Using UTC to avoid timezone issues
-        body['send_after'] = sendAfter.toUtc().toIso8601String().replaceFirst('Z', ' GMT+0000');
+        // OneSignal expects ISO-8601 for send_after
+        body['send_after'] = sendAfter.toUtc().toIso8601String();
       }
 
       final response = await http.post(

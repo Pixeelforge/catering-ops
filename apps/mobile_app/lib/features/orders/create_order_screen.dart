@@ -737,8 +737,8 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
           final reminder6h = eventDate.subtract(const Duration(hours: 6));
           if (reminder6h.isAfter(now)) {
             NotificationService.sendNotification(
-              playerIds: [user.id],
-              title: 'Upcoming Order Reminder! ⏰',
+              playerIds: [user.id], // Owner/Creator
+              title: 'Catering Ops: Upcoming Order! ⏰',
               message: 'Reminder: Order for $clientName is scheduled for $formattedTime.',
               data: {'type': 'order_reminder'},
               color: 'FFFF9800', // Orange

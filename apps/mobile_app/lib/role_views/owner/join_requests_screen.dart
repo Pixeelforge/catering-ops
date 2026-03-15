@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:audioplayers/audioplayers.dart';
 import '../../services/notification_service.dart';
+import '../../services/cache_service.dart';
 
 class JoinRequestsScreen extends StatefulWidget {
   const JoinRequestsScreen({super.key, this.onRequestHandled});
@@ -69,6 +70,15 @@ class _JoinRequestsScreenState extends State<JoinRequestsScreen> {
   Future<void> _loadRequests() async {
     if (_companyId == null) return;
 
+    // 1. Try loading from Cache
+    final cached = CacheService.get('join_requests_$_companyId');
+    if (cached != null && mounted) {
+      setState(() {
+        _requests = List<Map<String, dynamic>>.from(cached);
+        _loading = false;
+      });
+    }
+
     try {
       final res = await supabase
           .from('company_join_requests')
@@ -82,6 +92,9 @@ class _JoinRequestsScreenState extends State<JoinRequestsScreen> {
           _requests = List<Map<String, dynamic>>.from(res);
           _loading = false;
         });
+
+        // 2. Save to Cache
+        CacheService.save('join_requests_$_companyId', res);
       }
     } catch (e) {
       debugPrint('Error fetching requests: $e');
